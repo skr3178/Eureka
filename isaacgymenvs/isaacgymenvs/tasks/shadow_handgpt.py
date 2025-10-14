@@ -367,7 +367,7 @@ class ShadowHandGPT(VecTask):
         self.goal_object_indices = to_torch(self.goal_object_indices, dtype=torch.long, device=self.device)
 
     def compute_reward(self, actions):
-        self.rew_buf[:], self.rew_dict = compute_reward(self.object_rot, self.goal_rot, self.fingertip_pos, self.object_pos)
+        self.rew_buf[:], self.rew_dict = compute_reward(self.object_rot, self.goal_rot, self.object_angvel, self.fingertip_pos, self.object_pos)
         self.extras['gpt_reward'] = self.rew_buf.mean()
         for rew_state in self.rew_dict: self.extras[rew_state] = self.rew_dict[rew_state].mean()
         self.rew_buf[:] = compute_bonus(
@@ -763,32 +763,65 @@ import math
 import torch
 from torch import Tensor
 @torch.jit.script
-def compute_reward(object_rot: torch.Tensor, goal_rot: torch.Tensor, fingertip_pos: torch.Tensor, object_pos: torch.Tensor) -> Tuple[torch.Tensor, Dict[str, torch.Tensor]]:
-    device = object_rot.device
+def compute_reward(
+    object_rot: torch.Tensor,  # [num_envs, 4] quaternion (xyzw)
+    goal_rot: torch.Tensor,    # [num_envs, 4] quaternion (xyzw)
+    object_angvel: torch.Tensor,  # [num_envs, 3]
+    fingertip_pos: torch.Tensor,  # [num_envs, num_fingertips, 3]
+    object_pos: torch.Tensor      # [num_envs, 3]
+) -> Tuple[torch.Tensor, Dict[str, torch.Tensor]]:
+    """
+    Reward for spinning the object to a target orientation using the shadow hand.
+    - Align object to goal orientation (main reward)
+    - Small bonus for non-zero object angular velocity (encourage spinning)
+    - Encourage fingertips to be near the object (grasping incentive)
+    - Penalize excess spinning (if already well-aligned)
+    """
+    # Main reward: Orientation matching (quaternion distance)
+    # Quat distance: d(q1, q2) = 1 - |dot(q1, q2)|
+    # Quaternions should be normalized already, but ensure safety.
+    object_rot = object_rot / (torch.norm(object_rot, dim=-1, keepdim=True) + 1e-6)
+    goal_rot = goal_rot / (torch.norm(goal_rot, dim=-1, keepdim=True) + 1e-6)
+    quat_dot = torch.abs(torch.sum(object_rot * goal_rot, dim=-1))
+    # Small numerical errors: clamp
+    quat_dot = torch.clamp(quat_dot, 0.0, 1.0)
+    quat_dist = 1.0 - quat_dot  # [num_envs]
+    # Exponential shaping for sharper gradient
+    orientation_temp = 10.0  # temperature scale
+    orientation_reward = torch.exp(-orientation_temp * quat_dist)
     
-    # Distance between object rotation and goal rotation
-    object_goal_rot_diff = torch.norm(object_rot - goal_rot, dim=1)
+    # Bonus for object angular velocity (normalized): encourage spinning
+    spin_temp = 6.0
+    spin_bonus = torch.norm(object_angvel, dim=-1)  # L2 norm [num_envs]
+    # Scale so that bonus drops as orientation error drops (don't spin forever)
+    spin_modulation = (quat_dist > 0.03).float()  # only reward spinning if not well aligned
+    spin_bonus_transformed = spin_modulation * torch.tanh(spin_temp * spin_bonus)
+
+    # Encourage fingertips to be near the object ("contact reward")
+    # For each fingertip, compute distance to object center
+    # Sum over all fingertips, then divide by num_fingertips (mean)
+    dist_to_object = torch.norm(fingertip_pos - object_pos.unsqueeze(1), dim=-1)  # [num_envs, num_fingertips]
+    avg_dist = torch.mean(dist_to_object, dim=-1)  # [num_envs]
+    contact_temp = 10.0
+    contact_reward = torch.exp(-contact_temp * avg_dist)
     
-    # Distance between each fingertip and the object
-    fingertip_object_diff = torch.norm(fingertip_pos - object_pos.unsqueeze(1), dim=2)
-    avg_fingertip_object_diff = fingertip_object_diff.mean(dim=1)
-    
-    # Reward Components
-    rot_reward = -object_goal_rot_diff
-    fingertip_reward = -avg_fingertip_object_diff
-    
-    # Temperature parameters for reward normalization
-    rot_temperature = torch.tensor(1.0).to(device)
-    fingertip_temperature = torch.tensor(1.0).to(device)
-    
-    # Normalize reward components using exponential function
-    rot_reward_normalized = torch.exp(rot_reward / rot_temperature)
-    fingertip_reward_normalized = torch.exp(fingertip_reward / fingertip_temperature)
-    
-    # Combine normalized rewards
-    total_reward = rot_reward_normalized + fingertip_reward_normalized
-    
-    # Store individual reward components in a dictionary
-    reward_dict = {"rot_reward": rot_reward_normalized, "fingertip_reward": fingertip_reward_normalized}
-    
-    return total_reward, reward_dict
+    # Penalty for excessive spinning once aligned
+    aligned_and_spinning = ((quat_dist < 0.03) & (spin_bonus > 0.2)).float()
+    spin_penalty = -aligned_and_spinning * spin_bonus
+
+    # Weighted sum of components
+    total_reward = (
+        2.0 * orientation_reward  # main reward
+        + 0.3 * spin_bonus_transformed
+        + 0.5 * contact_reward
+        + 0.2 * spin_penalty
+    )
+
+    rew_dict: Dict[str, torch.Tensor] = {
+        "orientation_reward": orientation_reward,
+        "spin_bonus": spin_bonus_transformed,
+        "contact_reward": contact_reward,
+        "spin_penalty": spin_penalty,
+        "quat_dist": quat_dist
+    }
+    return total_reward, rew_dict
