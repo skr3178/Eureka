@@ -1,4 +1,22 @@
 @torch.jit.script
 def compute_reward(object_pos: torch.Tensor, goal_pos: torch.Tensor) -> Tuple[torch.Tensor, Dict[str, torch.Tensor]]:
-    ...
-    return reward, {}
+    '''
+    Reward function for the task.
+    
+    Args:
+        object_pos: Current object position tensor
+        goal_pos: Target goal position tensor
+        
+    Returns:
+        Tuple of (total_reward, reward_components_dict)
+    '''
+    # Your reward computation logic here
+    distance = torch.norm(object_pos - goal_pos, dim=-1)
+    reward = torch.exp(-distance)
+    
+    rew_dict: Dict[str, torch.Tensor] = {
+        "distance_reward": reward,
+        "total_reward": reward
+    }
+    
+    return reward, rew_dict

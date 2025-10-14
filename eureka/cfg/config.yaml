@@ -11,7 +11,7 @@ hydra:
 # LLM parameters
 # model: gpt-4-0314
 model: gpt-4.1  # LLM model (other options are gpt-4, gpt-4-0613, gpt-3.5-turbo-16k-0613)
-temperature: 1.0
+temperature: 0.3  # Reduced from 1.0 for more consistent structure
 suffix: GPT  # suffix for generated files (indicates LLM model)
 
 # Eureka parameters
