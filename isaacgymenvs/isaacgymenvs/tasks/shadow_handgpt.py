@@ -367,7 +367,7 @@ class ShadowHandGPT(VecTask):
         self.goal_object_indices = to_torch(self.goal_object_indices, dtype=torch.long, device=self.device)
 
     def compute_reward(self, actions):
-        self.rew_buf[:], self.rew_dict = compute_reward(self.object_rot, self.goal_rot, self.object_angvel, self.fingertip_pos, self.object_pos)
+        self.rew_buf[:], self.rew_dict = compute_reward(self.object_rot, self.goal_rot, self.object_angvel, self.actions)
         self.extras['gpt_reward'] = self.rew_buf.mean()
         for rew_state in self.rew_dict: self.extras[rew_state] = self.rew_dict[rew_state].mean()
         self.rew_buf[:] = compute_bonus(
@@ -764,64 +764,94 @@ import torch
 from torch import Tensor
 @torch.jit.script
 def compute_reward(
-    object_rot: torch.Tensor,  # [num_envs, 4] quaternion (xyzw)
-    goal_rot: torch.Tensor,    # [num_envs, 4] quaternion (xyzw)
-    object_angvel: torch.Tensor,  # [num_envs, 3]
-    fingertip_pos: torch.Tensor,  # [num_envs, num_fingertips, 3]
-    object_pos: torch.Tensor      # [num_envs, 3]
+    object_rot: torch.Tensor,
+    goal_rot: torch.Tensor,
+    object_angvel: torch.Tensor,
+    actions: torch.Tensor,
 ) -> Tuple[torch.Tensor, Dict[str, torch.Tensor]]:
-    """
-    Reward for spinning the object to a target orientation using the shadow hand.
-    - Align object to goal orientation (main reward)
-    - Small bonus for non-zero object angular velocity (encourage spinning)
-    - Encourage fingertips to be near the object (grasping incentive)
-    - Penalize excess spinning (if already well-aligned)
-    """
-    # Main reward: Orientation matching (quaternion distance)
-    # Quat distance: d(q1, q2) = 1 - |dot(q1, q2)|
-    # Quaternions should be normalized already, but ensure safety.
-    object_rot = object_rot / (torch.norm(object_rot, dim=-1, keepdim=True) + 1e-6)
-    goal_rot = goal_rot / (torch.norm(goal_rot, dim=-1, keepdim=True) + 1e-6)
-    quat_dot = torch.abs(torch.sum(object_rot * goal_rot, dim=-1))
-    # Small numerical errors: clamp
-    quat_dot = torch.clamp(quat_dot, 0.0, 1.0)
-    quat_dist = 1.0 - quat_dot  # [num_envs]
-    # Exponential shaping for sharper gradient
-    orientation_temp = 10.0  # temperature scale
-    orientation_reward = torch.exp(-orientation_temp * quat_dist)
-    
-    # Bonus for object angular velocity (normalized): encourage spinning
-    spin_temp = 6.0
-    spin_bonus = torch.norm(object_angvel, dim=-1)  # L2 norm [num_envs]
-    # Scale so that bonus drops as orientation error drops (don't spin forever)
-    spin_modulation = (quat_dist > 0.03).float()  # only reward spinning if not well aligned
-    spin_bonus_transformed = spin_modulation * torch.tanh(spin_temp * spin_bonus)
+    '''
+    Reward for spinning an object to a target orientation with a Shadow Hand.
 
-    # Encourage fingertips to be near the object ("contact reward")
-    # For each fingertip, compute distance to object center
-    # Sum over all fingertips, then divide by num_fingertips (mean)
-    dist_to_object = torch.norm(fingertip_pos - object_pos.unsqueeze(1), dim=-1)  # [num_envs, num_fingertips]
-    avg_dist = torch.mean(dist_to_object, dim=-1)  # [num_envs]
-    contact_temp = 10.0
-    contact_reward = torch.exp(-contact_temp * avg_dist)
-    
-    # Penalty for excessive spinning once aligned
-    aligned_and_spinning = ((quat_dist < 0.03) & (spin_bonus > 0.2)).float()
-    spin_penalty = -aligned_and_spinning * spin_bonus
+    Components:
+    - Orientation alignment: encourages the object's orientation quaternion to match the goal quaternion.
+      Uses the shortest-angle quaternion error converted to an angle in [0, pi].
+    - Angular velocity tracking: encourages the object's angular velocity to align with the shortest rotation
+      axis from current to goal orientation, with a magnitude proportional to the remaining angle (and clamped).
+      This naturally drives fast rotation when far and slows down near the goal.
+    - Action regularization: small incentive for lower action magnitudes for smoother control.
+    - Success bonus: extra reward when the orientation error falls below a small threshold.
 
-    # Weighted sum of components
-    total_reward = (
-        2.0 * orientation_reward  # main reward
-        + 0.3 * spin_bonus_transformed
-        + 0.5 * contact_reward
-        + 0.2 * spin_penalty
-    )
+    Each shaped component uses an exponential transform with its own temperature parameter.
+    '''
+    eps = 1e-6
+
+    # Normalize quaternions to be safe
+    q_obj_norm = torch.clamp(torch.norm(object_rot, dim=-1, keepdim=True), min=eps)
+    q_goal_norm = torch.clamp(torch.norm(goal_rot, dim=-1, keepdim=True), min=eps)
+    q_obj = object_rot / q_obj_norm
+    q_goal = goal_rot / q_goal_norm
+
+    # Quaternion conjugate of goal: [-x, -y, -z, w]
+    q_goal_conj = torch.cat((-q_goal[..., 0:3], q_goal[..., 3:4]), dim=-1)
+
+    # Quaternion multiplication q_err = q_goal_conj ⊗ q_obj
+    av = q_goal_conj[..., 0:3]
+    aw = q_goal_conj[..., 3:4]
+    bv = q_obj[..., 0:3]
+    bw = q_obj[..., 3:4]
+    vec = aw * bv + bw * av + torch.cross(av, bv, dim=-1)
+    sca = aw * bw - (av * bv).sum(dim=-1, keepdim=True)
+    q_err = torch.cat((vec, sca), dim=-1)
+
+    # Axis-angle from quaternion error (robust form)
+    v = q_err[..., 0:3]
+    w = q_err[..., 3]
+    v_norm = torch.norm(v, dim=-1)
+    angle_err = 2.0 * torch.atan2(v_norm, torch.clamp(torch.abs(w), min=eps))
+    angle_err = torch.clamp(angle_err, 0.0, 3.14159265)
+
+    # Orientation alignment reward (higher when closer)
+    tau_angle = 0.5  # temperature for orientation shaping
+    r_orient = torch.exp(-angle_err / tau_angle)
+
+    # Desired angular velocity: along shortest rotation axis with magnitude proportional to error
+    axis = v / (v_norm.unsqueeze(-1) + eps)
+    k_omega = 6.0     # gain from angle to target angular speed
+    omega_max = 10.0  # clamp maximum target angular speed
+    target_omega_mag = torch.clamp(k_omega * angle_err, 0.0, omega_max)
+    target_omega = axis * target_omega_mag.unsqueeze(-1)
+
+    # Angular velocity tracking reward
+    omega_err = torch.norm(object_angvel - target_omega, dim=-1)
+    tau_omega = 3.0  # temperature for velocity tracking shaping
+    r_omega_track = torch.exp(-omega_err / tau_omega)
+
+    # Action regularization (encourages smoother control)
+    act_norm = torch.norm(actions, dim=-1)
+    tau_action = 20.0  # temperature for action regularization
+    r_action = torch.exp(-act_norm / tau_action)
+
+    # Success bonus when orientation is very close
+    success_threshold = 0.1  # radians (~5.7 deg)
+    bonus_value = 2.0
+    success_mask = torch.where(angle_err <= success_threshold, torch.ones_like(angle_err), torch.zeros_like(angle_err))
+    success_bonus = bonus_value * success_mask
+
+    # Weights for components
+    w_orient = 2.0
+    w_omega = 1.5
+    w_action = 0.1
+
+    total_reward = w_orient * r_orient + w_omega * r_omega_track + w_action * r_action + success_bonus
 
     rew_dict: Dict[str, torch.Tensor] = {
-        "orientation_reward": orientation_reward,
-        "spin_bonus": spin_bonus_transformed,
-        "contact_reward": contact_reward,
-        "spin_penalty": spin_penalty,
-        "quat_dist": quat_dist
+        "orientation_reward": r_orient,
+        "angular_velocity_tracking_reward": r_omega_track,
+        "action_regularization": r_action,
+        "success_bonus": success_bonus,
+        "angle_error": angle_err,
+        "omega_error": omega_err,
+        "total_reward": total_reward,
     }
+
     return total_reward, rew_dict

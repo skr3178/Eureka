@@ -127,3 +127,5 @@ If you find our work useful, please consider citing us!
 
 Disclaimer: This project is strictly for research purposes, and not an official product from NVIDIA.
 
+Issue is first prompt is able to be parsed. Subsequent prompts are unable to be parsed by the filter:
+

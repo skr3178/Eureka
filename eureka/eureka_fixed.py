@@ -15,51 +15,19 @@ from utils.misc import *
 from utils.file_utils import find_files_with_substring, load_tensorboard_logs
 from utils.create_task import create_task
 from utils.extract_task_code import *
-import signal
-import psutil
 
-EUREKA_ROOT_DIR = os.getcwd()
+# Determine the correct root directory based on current working directory
+if os.path.exists("envs"):
+    # Running from eureka/ directory
+    EUREKA_ROOT_DIR = os.getcwd()
+elif os.path.exists("eureka/envs"):
+    # Running from parent directory
+    EUREKA_ROOT_DIR = os.path.join(os.getcwd(), "eureka")
+else:
+    # Fallback to current directory
+    EUREKA_ROOT_DIR = os.getcwd()
+
 ISAAC_ROOT_DIR = f"{EUREKA_ROOT_DIR}/../isaacgymenvs/isaacgymenvs"
-
-def cleanup_process(process):
-    """Properly clean up a subprocess and its children"""
-    try:
-        if process.poll() is None:  # Process is still running
-            # Get all child processes
-            parent = psutil.Process(process.pid)
-            children = parent.children(recursive=True)
-            
-            # Terminate children first
-            for child in children:
-                try:
-                    child.terminate()
-                except psutil.NoSuchProcess:
-                    pass
-            
-            # Wait a bit for graceful termination
-            time.sleep(2)
-            
-            # Kill any remaining children
-            for child in children:
-                try:
-                    if child.is_running():
-                        child.kill()
-                except psutil.NoSuchProcess:
-                    pass
-            
-            # Terminate the main process
-            process.terminate()
-            time.sleep(1)
-            
-            # Force kill if still running
-            if process.poll() is None:
-                process.kill()
-                
-        process.wait(timeout=5)  # Wait for process to finish
-    except (subprocess.TimeoutExpired, psutil.NoSuchProcess, ProcessLookupError):
-        pass
-    except Exception as e:
-        logging.warning(f"Error cleaning up process: {e}")
 
 @hydra.main(config_path="cfg", config_name="config", version_base="1.1")
 def main(cfg):
@@ -68,16 +36,6 @@ def main(cfg):
     logging.info(f"Project Root: {EUREKA_ROOT_DIR}")
 
     openai.api_key = os.getenv("OPENAI_API_KEY")
-    
-    # Set up signal handler for graceful shutdown
-    def signal_handler(signum, frame):
-        logging.info("Received interrupt signal, cleaning up...")
-        # Clear GPU memory on exit
-        clear_gpu_memory()
-        exit(0)
-    
-    signal.signal(signal.SIGINT, signal_handler)
-    signal.signal(signal.SIGTERM, signal_handler)
 
     task = cfg.env.task
     task_description = cfg.env.description
@@ -88,7 +46,7 @@ def main(cfg):
     logging.info("Task description: " + task_description)
 
     env_name = cfg.env.env_name.lower()
-    env_parent = 'isaac' if f'{env_name}.py' in os.listdir(f'{EUREKA_ROOT_DIR}/envs/isaac') else 'dexterity'
+    env_parent = 'isaac' if f'{env_name}.py' in os.listdir(f'{EUREKA_ROOT_DIR}/envs/isaac') else 'bidex'
     task_file = f'{EUREKA_ROOT_DIR}/envs/{env_parent}/{env_name}.py'
     task_obs_file = f'{EUREKA_ROOT_DIR}/envs/{env_parent}/{env_name}_obs.py'
     shutil.copy(task_obs_file, f"env_init_obs.py")
@@ -235,13 +193,10 @@ def main(cfg):
             # Copy the generated environment code to hydra output directory for bookkeeping
             shutil.copy(output_file, f"env_iter{iter}_response{response_id}.py")
 
-            # Clear GPU memory before starting new job
-            clear_gpu_memory()
-            
             # Find the freest GPU to run GPU-accelerated RL
             set_freest_gpu()
             
-            # Execute the python file with flags - SEQUENTIAL EXECUTION
+            # Execute the python file with flags
             rl_filepath = f"env_iter{iter}_response{response_id}.txt"
             with open(rl_filepath, 'w') as f:
                 process = subprocess.Popen(['python', '-u', f'{ISAAC_ROOT_DIR}/train.py',  
@@ -251,16 +206,7 @@ def main(cfg):
                                             f'headless={not cfg.capture_video}', f'capture_video={cfg.capture_video}', 'force_render=False',
                                             f'max_iterations={cfg.max_iterations}'],
                                             stdout=f, stderr=f)
-            
-            # Wait for training to complete properly
             block_until_training(rl_filepath, log_status=True, iter_num=iter, response_id=response_id)
-            
-            # Clean up the process properly
-            cleanup_process(process)
-            
-            # Clear GPU memory after job completion
-            clear_gpu_memory()
-            
             rl_runs.append(process)
         
         # Gather RL training results and construct reward reflection
@@ -414,9 +360,6 @@ def main(cfg):
     
     eval_runs = []
     for i in range(cfg.num_eval):
-        # Clear GPU memory before starting new evaluation
-        clear_gpu_memory()
-        
         set_freest_gpu()
         
         # Execute the python file with flags
@@ -430,15 +373,7 @@ def main(cfg):
                                         ],
                                         stdout=f, stderr=f)
 
-        # Wait for training to complete properly
         block_until_training(rl_filepath)
-        
-        # Clean up the process properly
-        cleanup_process(process)
-        
-        # Clear GPU memory after evaluation completion
-        clear_gpu_memory()
-        
         eval_runs.append(process)
 
     reward_code_final_successes = []
