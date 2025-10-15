@@ -2,23 +2,9 @@
 
 <div align="center">
 
-[[Website]](https://eureka-research.github.io)
-[[arXiv]](https://arxiv.org/abs/2310.12931)
-[[PDF]](https://eureka-research.github.io/assets/eureka_paper.pdf)
-
-[![Python Version](https://img.shields.io/badge/Python-3.8-blue.svg)](https://github.com/eureka-research/Eureka)
-[<img src="https://img.shields.io/badge/Framework-PyTorch-red.svg"/>](https://pytorch.org/)
-[![GitHub license](https://img.shields.io/github/license/eureka-research/Eureka)](https://github.com/eureka-research/Eureka/blob/main/LICENSE)
-______________________________________________________________________
-
-https://github.com/eureka-research/Eureka/assets/21993118/1abb960d-321a-4de9-b311-113b5fc53d4a
 
 
-
-![](images/eureka.png)
 </div>
-
-Large Language Models (LLMs) have excelled as high-level semantic planners for sequential decision-making tasks. However, harnessing them to learn complex low-level manipulation tasks, such as dexterous pen spinning, remains an open problem. We bridge this fundamental gap and present Eureka, a **human-level** reward design algorithm powered by LLMs. Eureka exploits the remarkable zero-shot generation, code-writing, and in-context improvement capabilities of state-of-the-art LLMs, such as GPT-4, to perform in-context evolutionary optimization over reward code. The resulting rewards can then be used to acquire complex skills via reinforcement learning. Eureka generates reward functions that outperform expert human-engineered rewards without any task-specific prompting or pre-defined reward templates. In a diverse suite of 29 open-source RL environments that include 10 distinct robot morphologies, Eureka outperforms human expert on **83\%** of the tasks leading to an average normalized improvement of **52\%**. The generality of Eureka also enables a new gradient-free approach to reinforcement learning from human feedback (RLHF), readily incorporating human oversight to improve the quality and the safety of the generated rewards in context. Finally, using Eureka rewards in a curriculum learning setting, we demonstrate for the first time a simulated five-finger Shadow Hand capable of performing pen spinning tricks, adeptly manipulating a pen in circles at human speed. 
 
 # Installation
 Eureka requires Python ≥ 3.8. We have tested on Ubuntu 20.04 and 22.04.
@@ -104,17 +90,6 @@ python prune_env.py your_new_task
 python eureka.py env=your_new_task
 ```
 
-# Acknowledgement
-We thank the following open-sourced projects:
-- Our environments are from [IsaacGym](https://github.com/NVIDIA-Omniverse/IsaacGymEnvs) and [DexterousHands](https://github.com/PKU-MARL/DexterousHands/).
-- Our RL training code is based on [rl_games](https://github.com/Denys88/rl_games).
-
-
-# License
-This codebase is released under [MIT License](LICENSE).
-
-# Citation
-If you find our work useful, please consider citing us!
 
 ```bibtex
 @article{ma2023eureka,
@@ -124,13 +99,11 @@ If you find our work useful, please consider citing us!
   journal = {arXiv preprint arXiv: Arxiv-2310.12931}
 }
 ```
+## SKR Notes
 
-Disclaimer: This project is strictly for research purposes, and not an official product from NVIDIA.
-
-Issue is first prompt is able to be parsed. Subsequent prompts are unable to be parsed by the filter:
-
-Solved the issues with better prompts at all stages. 
-
-Out of memory error with cuda also resolved using cache of NVIDIA memory. 
-
-In addition, the analysis does not run in parallel but only after one simulation is completed. 
+- Solved the issues with better prompts at all stages. 
+- Out of memory error with cuda also resolved using cache of NVIDIA memory. 
+- In addition, the analysis does not run in parallel but only after one simulation is completed. 
+- ToDo: Compare the results from default rewards with the LLM predicts rewards for 
+1. Humanoid
+2. Hand Motion

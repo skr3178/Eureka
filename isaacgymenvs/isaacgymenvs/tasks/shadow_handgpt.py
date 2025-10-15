@@ -367,7 +367,7 @@ class ShadowHandGPT(VecTask):
         self.goal_object_indices = to_torch(self.goal_object_indices, dtype=torch.long, device=self.device)
 
     def compute_reward(self, actions):
-        self.rew_buf[:], self.rew_dict = compute_reward(self.object_rot, self.goal_rot, self.object_angvel, self.actions)
+        self.rew_buf[:], self.rew_dict = compute_reward(self.object_rot, self.goal_rot, self.object_angvel)
         self.extras['gpt_reward'] = self.rew_buf.mean()
         for rew_state in self.rew_dict: self.extras[rew_state] = self.rew_dict[rew_state].mean()
         self.rew_buf[:] = compute_bonus(
@@ -767,90 +767,136 @@ def compute_reward(
     object_rot: torch.Tensor,
     goal_rot: torch.Tensor,
     object_angvel: torch.Tensor,
-    actions: torch.Tensor,
 ) -> Tuple[torch.Tensor, Dict[str, torch.Tensor]]:
     '''
-    Reward for spinning an object to a target orientation with a Shadow Hand.
+    Reward for spinning the grasped object to match a target orientation.
 
     Components:
-    - Orientation alignment: encourages the object's orientation quaternion to match the goal quaternion.
-      Uses the shortest-angle quaternion error converted to an angle in [0, pi].
-    - Angular velocity tracking: encourages the object's angular velocity to align with the shortest rotation
-      axis from current to goal orientation, with a magnitude proportional to the remaining angle (and clamped).
-      This naturally drives fast rotation when far and slows down near the goal.
-    - Action regularization: small incentive for lower action magnitudes for smoother control.
-    - Success bonus: extra reward when the orientation error falls below a small threshold.
+    - orientation_alignment: Exponential reward based on the geodesic quaternion angle between object_rot and goal_rot.
+    - vel_progress: Encourages angular velocity that reduces the remaining orientation error along the shortest rotation axis.
+    - stability_penalty: Penalizes residual spinning when the object is already near the goal orientation.
+    - success_bonus: Bonus when the orientation error is within a small threshold.
 
-    Each shaped component uses an exponential transform with its own temperature parameter.
+    Notes:
+    - All computations are vectorized per environment.
+    - Temperatures control the curvature of the exponential shaping terms.
     '''
-    eps = 1e-6
+    # Device-safe small constants
+    eps: float = 1e-6
 
-    # Normalize quaternions to be safe
-    q_obj_norm = torch.clamp(torch.norm(object_rot, dim=-1, keepdim=True), min=eps)
-    q_goal_norm = torch.clamp(torch.norm(goal_rot, dim=-1, keepdim=True), min=eps)
-    q_obj = object_rot / q_obj_norm
-    q_goal = goal_rot / q_goal_norm
+    # Temperatures for shaped components
+    angle_temp: float = 0.5            # temperature for orientation alignment exp shaping
+    vel_ratio_temp: float = 0.35       # temperature for velocity progress ratio exp shaping
 
-    # Quaternion conjugate of goal: [-x, -y, -z, w]
-    q_goal_conj = torch.cat((-q_goal[..., 0:3], q_goal[..., 3:4]), dim=-1)
+    # Component weights and hyperparameters
+    w_align: float = 1.0
+    w_vel: float = 0.6
+    w_stability: float = 0.1
+    w_success: float = 2.0
 
-    # Quaternion multiplication q_err = q_goal_conj ⊗ q_obj
-    av = q_goal_conj[..., 0:3]
-    aw = q_goal_conj[..., 3:4]
-    bv = q_obj[..., 0:3]
-    bw = q_obj[..., 3:4]
-    vec = aw * bv + bw * av + torch.cross(av, bv, dim=-1)
-    sca = aw * bw - (av * bv).sum(dim=-1, keepdim=True)
-    q_err = torch.cat((vec, sca), dim=-1)
+    desired_speed_gain: float = 3.0     # scales desired angular speed proportional to angle
+    max_desired_speed: float = 12.0     # cap on desired angular speed (rad/s)
+    near_goal_angle: float = 0.05       # rad; below this, encourage stability instead of speed
+    success_angle: float = 0.025        # rad; success threshold
 
-    # Axis-angle from quaternion error (robust form)
-    v = q_err[..., 0:3]
-    w = q_err[..., 3]
+    # -------------------------------------------------------------------------
+    # Compute relative quaternion q_rel = object_rot * conj(goal_rot) (xyzw format)
+    # -------------------------------------------------------------------------
+    ox = object_rot[:, 0]
+    oy = object_rot[:, 1]
+    oz = object_rot[:, 2]
+    ow = object_rot[:, 3]
+
+    gx = goal_rot[:, 0]
+    gy = goal_rot[:, 1]
+    gz = goal_rot[:, 2]
+    gw = goal_rot[:, 3]
+
+    # goal conjugate
+    cbx = -gx
+    cby = -gy
+    cbz = -gz
+    cbw = gw
+
+    # q_rel = O * conj(G) (xyzw)
+    qrx = ow * cbx + ox * cbw + oy * cbz - oz * cby
+    qry = ow * cby - ox * cbz + oy * cbw + oz * cbx
+    qrz = ow * cbz + ox * cby - oy * cbx + oz * cbw
+    qrw = ow * cbw - ox * cbx - oy * cby - oz * cbz
+
+    # Ensure shortest representation (make scalar part non-negative)
+    one = torch.ones_like(qrw)
+    minus_one = -one
+    sign = torch.where(qrw >= 0.0, one, minus_one)
+    qrx = qrx * sign
+    qry = qry * sign
+    qrz = qrz * sign
+    qrw = qrw * sign
+
+    # Angle between orientations in [0, pi]
+    cos_half = torch.clamp(qrw.abs(), 0.0, 1.0)
+    angle = 2.0 * torch.acos(cos_half)
+
+    # -------------------------------------------------------------------------
+    # Orientation alignment reward: higher when angle is small
+    # -------------------------------------------------------------------------
+    orientation_alignment = torch.exp(-angle / angle_temp)
+
+    # -------------------------------------------------------------------------
+    # Velocity shaping: encourage spinning that reduces the remaining angle
+    # -------------------------------------------------------------------------
+    # Axis of shortest rotation a = v/||v||, where v is the vector part of q_rel
+    v = torch.stack((qrx, qry, qrz), dim=-1)
     v_norm = torch.norm(v, dim=-1)
-    angle_err = 2.0 * torch.atan2(v_norm, torch.clamp(torch.abs(w), min=eps))
-    angle_err = torch.clamp(angle_err, 0.0, 3.14159265)
+    v_norm_clamped = torch.clamp(v_norm, min=eps)
+    axis = v / v_norm_clamped.unsqueeze(-1)
 
-    # Orientation alignment reward (higher when closer)
-    tau_angle = 0.5  # temperature for orientation shaping
-    r_orient = torch.exp(-angle_err / tau_angle)
+    # Desired angular speed proportional to remaining angle, with a cap
+    desired_speed = desired_speed_gain * angle
+    desired_speed = torch.clamp(desired_speed, min=0.0, max=max_desired_speed)
 
-    # Desired angular velocity: along shortest rotation axis with magnitude proportional to error
-    axis = v / (v_norm.unsqueeze(-1) + eps)
-    k_omega = 6.0     # gain from angle to target angular speed
-    omega_max = 10.0  # clamp maximum target angular speed
-    target_omega_mag = torch.clamp(k_omega * angle_err, 0.0, omega_max)
-    target_omega = axis * target_omega_mag.unsqueeze(-1)
+    # Component of current angular velocity along the direction that reduces error: -axis
+    # Positive when rotating towards the goal
+    vel_towards_goal = -(object_angvel * axis).sum(dim=-1)
 
-    # Angular velocity tracking reward
-    omega_err = torch.norm(object_angvel - target_omega, dim=-1)
-    tau_omega = 3.0  # temperature for velocity tracking shaping
-    r_omega_track = torch.exp(-omega_err / tau_omega)
+    # Normalize progress by desired speed to form a ratio in [0, inf)
+    ratio = vel_towards_goal / (desired_speed + eps)
+    ratio_clamped = torch.clamp(ratio, min=0.0, max=1.0)
 
-    # Action regularization (encourages smoother control)
-    act_norm = torch.norm(actions, dim=-1)
-    tau_action = 20.0  # temperature for action regularization
-    r_action = torch.exp(-act_norm / tau_action)
+    # Only encourage velocity progress when we are not already very close to the goal
+    far_mask = torch.where(angle > near_goal_angle, torch.ones_like(angle), torch.zeros_like(angle))
 
-    # Success bonus when orientation is very close
-    success_threshold = 0.1  # radians (~5.7 deg)
-    bonus_value = 2.0
-    success_mask = torch.where(angle_err <= success_threshold, torch.ones_like(angle_err), torch.zeros_like(angle_err))
-    success_bonus = bonus_value * success_mask
+    # Shaped velocity progress reward: 1 when ratio=1, decays smoothly for smaller ratios
+    vel_progress = far_mask * torch.exp((ratio_clamped - 1.0) / vel_ratio_temp)
 
-    # Weights for components
-    w_orient = 2.0
-    w_omega = 1.5
-    w_action = 0.1
+    # -------------------------------------------------------------------------
+    # Stability penalty near goal: discourage residual spinning when aligned
+    # -------------------------------------------------------------------------
+    angvel_norm = torch.norm(object_angvel, dim=-1)
+    near_mask = 1.0 - far_mask
+    stability_penalty = -near_mask * angvel_norm
 
-    total_reward = w_orient * r_orient + w_omega * r_omega_track + w_action * r_action + success_bonus
+    # -------------------------------------------------------------------------
+    # Success bonus when within tight orientation threshold
+    # -------------------------------------------------------------------------
+    success_bonus_val: float = 1.0
+    success_bonus = torch.where(angle < success_angle, success_bonus_val * torch.ones_like(angle), torch.zeros_like(angle))
+
+    # -------------------------------------------------------------------------
+    # Total reward
+    # -------------------------------------------------------------------------
+    total_reward = (
+        w_align * orientation_alignment
+        + w_vel * vel_progress
+        + w_stability * stability_penalty
+        + w_success * success_bonus
+    )
 
     rew_dict: Dict[str, torch.Tensor] = {
-        "orientation_reward": r_orient,
-        "angular_velocity_tracking_reward": r_omega_track,
-        "action_regularization": r_action,
+        "orientation_alignment": orientation_alignment,
+        "vel_progress": vel_progress,
+        "stability_penalty": stability_penalty,
         "success_bonus": success_bonus,
-        "angle_error": angle_err,
-        "omega_error": omega_err,
         "total_reward": total_reward,
     }
 
