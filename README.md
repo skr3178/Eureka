@@ -129,3 +129,8 @@ Disclaimer: This project is strictly for research purposes, and not an official 
 
 Issue is first prompt is able to be parsed. Subsequent prompts are unable to be parsed by the filter:
 
+Solved the issues with better prompts at all stages. 
+
+Out of memory error with cuda also resolved using cache of NVIDIA memory. 
+
+In addition, the analysis does not run in parallel but only after one simulation is completed. 
