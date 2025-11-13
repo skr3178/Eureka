@@ -67,7 +67,8 @@ def main(cfg):
     logging.info(f"Workspace: {workspace_dir}")
     logging.info(f"Project Root: {EUREKA_ROOT_DIR}")
 
-    openai.api_key = os.getenv("OPENAI_API_KEY")
+    # Initialize OpenAI client with API key
+    openai_client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
     
     # Set up signal handler for graceful shutdown
     def signal_handler(signum, frame):
@@ -140,7 +141,7 @@ def main(cfg):
                 break
             for attempt in range(1000):
                 try:
-                    response_cur = openai.ChatCompletion.create(
+                    response_cur = openai_client.chat.completions.create(
                         model=model,
                         messages=messages,
                         temperature=cfg.temperature,
@@ -158,13 +159,13 @@ def main(cfg):
                 logging.info("Code terminated due to too many failed attempts!")
                 exit()
 
-            responses.extend(response_cur["choices"])
-            prompt_tokens = response_cur["usage"]["prompt_tokens"]
-            total_completion_token += response_cur["usage"]["completion_tokens"]
-            total_token += response_cur["usage"]["total_tokens"]
+            responses.extend(response_cur.choices)
+            prompt_tokens = response_cur.usage.prompt_tokens
+            total_completion_token += response_cur.usage.completion_tokens
+            total_token += response_cur.usage.total_tokens
 
         if cfg.sample == 1:
-            logging.info(f"Iteration {iter}: GPT Output:\n " + responses[0]["message"]["content"] + "\n")
+            logging.info(f"Iteration {iter}: GPT Output:\n " + responses[0].message.content + "\n")
 
         # Logging Token Information
         logging.info(f"Iteration {iter}: Prompt Tokens: {prompt_tokens}, Completion Tokens: {total_completion_token}, Total Tokens: {total_token}")
@@ -172,7 +173,7 @@ def main(cfg):
         code_runs = [] 
         rl_runs = []
         for response_id in range(cfg.sample):
-            response_cur = responses[response_id]["message"]["content"]
+            response_cur = responses[response_id].message.content
             logging.info(f"Iteration {iter}: Processing Code Run {response_id}")
 
             # Regex patterns to extract python code enclosed in GPT response
@@ -293,13 +294,24 @@ def main(cfg):
                 # If RL execution has no error, provide policy statistics feedback
                 exec_success = True
                 lines = stdout_str.split('\n')
+                tensorboard_logdir = None
                 for i, line in enumerate(lines):
                     if line.startswith('Tensorboard Directory:'):
+                        tensorboard_logdir = line.split(':')[-1].strip()
                         break 
-                tensorboard_logdir = line.split(':')[-1].strip() 
-                tensorboard_logs = load_tensorboard_logs(tensorboard_logdir)
-                max_iterations = np.array(tensorboard_logs['gt_reward']).shape[0]
-                epoch_freq = max(int(max_iterations // 10), 1)
+                if tensorboard_logdir:
+                    # If path points to a file, get its parent directory
+                    if os.path.isfile(tensorboard_logdir):
+                        tensorboard_logdir = os.path.dirname(tensorboard_logdir)
+                    tensorboard_logs = load_tensorboard_logs(tensorboard_logdir)
+                else:
+                    tensorboard_logs = {}
+                
+                if tensorboard_logs and 'gt_reward' in tensorboard_logs:
+                    max_iterations = np.array(tensorboard_logs['gt_reward']).shape[0]
+                    epoch_freq = max(int(max_iterations // 10), 1)
+                else:
+                    epoch_freq = 1
                 
                 content += policy_feedback.format(epoch_freq=epoch_freq)
                 
@@ -370,7 +382,7 @@ def main(cfg):
 
         logging.info(f"Iteration {iter}: Max Success: {max_success}, Execute Rate: {execute_rate}, Max Success Reward Correlation: {max_success_reward_correlation}")
         logging.info(f"Iteration {iter}: Best Generation ID: {best_sample_idx}")
-        logging.info(f"Iteration {iter}: GPT Output Content:\n" +  responses[best_sample_idx]["message"]["content"] + "\n")
+        logging.info(f"Iteration {iter}: GPT Output Content:\n" +  responses[best_sample_idx].message.content + "\n")
         logging.info(f"Iteration {iter}: User Content:\n" + best_content + "\n")
             
         # Plot the success rate
@@ -392,11 +404,11 @@ def main(cfg):
         np.savez('summary.npz', max_successes=max_successes, execute_rates=execute_rates, best_code_paths=best_code_paths, max_successes_reward_correlation=max_successes_reward_correlation)
 
         if len(messages) == 2:
-            messages += [{"role": "assistant", "content": responses[best_sample_idx]["message"]["content"]}]
+            messages += [{"role": "assistant", "content": responses[best_sample_idx].message.content}]
             messages += [{"role": "user", "content": best_content}]
         else:
             assert len(messages) == 4
-            messages[-2] = {"role": "assistant", "content": responses[best_sample_idx]["message"]["content"]}
+            messages[-2] = {"role": "assistant", "content": responses[best_sample_idx].message.content}
             messages[-1] = {"role": "user", "content": best_content}
 
         # Save dictionary as JSON file
@@ -449,13 +461,24 @@ def main(cfg):
         with open(rl_filepath, 'r') as f:
             stdout_str = f.read() 
         lines = stdout_str.split('\n')
+        tensorboard_logdir = None
         for i, line in enumerate(lines):
             if line.startswith('Tensorboard Directory:'):
+                tensorboard_logdir = line.split(':')[-1].strip()
                 break 
-        tensorboard_logdir = line.split(':')[-1].strip() 
-        tensorboard_logs = load_tensorboard_logs(tensorboard_logdir)
-        max_success = max(tensorboard_logs['consecutive_successes'])
-        reward_code_final_successes.append(max_success)
+        if tensorboard_logdir:
+            # If path points to a file, get its parent directory
+            if os.path.isfile(tensorboard_logdir):
+                tensorboard_logdir = os.path.dirname(tensorboard_logdir)
+            tensorboard_logs = load_tensorboard_logs(tensorboard_logdir)
+        else:
+            tensorboard_logs = {}
+        
+        if tensorboard_logs and 'consecutive_successes' in tensorboard_logs:
+            max_success = max(tensorboard_logs['consecutive_successes'])
+            reward_code_final_successes.append(max_success)
+        else:
+            reward_code_final_successes.append(DUMMY_FAILURE)
 
         if "gt_reward" in tensorboard_logs and "gpt_reward" in tensorboard_logs:
             gt_reward = np.array(tensorboard_logs["gt_reward"])
