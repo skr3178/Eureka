@@ -93,12 +93,13 @@ def main(cfg):
 
     env_name = cfg.env.env_name.lower()
     # Check which environment directory contains the task file
-    if f'{env_name}.py' in os.listdir(f'{EUREKA_ROOT_DIR}/envs/isaac'):
-        env_parent = 'isaac'
-        use_isaacgym = True
-    elif f'{env_name}.py' in os.listdir(f'{EUREKA_ROOT_DIR}/envs/mujoco'):
+    # For eureka_mujoco.py, prioritize mujoco environments
+    if f'{env_name}.py' in os.listdir(f'{EUREKA_ROOT_DIR}/envs/mujoco'):
         env_parent = 'mujoco'
         use_isaacgym = False
+    elif f'{env_name}.py' in os.listdir(f'{EUREKA_ROOT_DIR}/envs/isaac'):
+        env_parent = 'isaac'
+        use_isaacgym = True
     else:
         env_parent = 'bidex'  # default to dexterity/bidex
         use_isaacgym = True
@@ -243,11 +244,65 @@ def main(cfg):
                 continue
 
             code_runs.append(code_string)
-            reward_signature = [
-                f"self.rew_buf[:], self.rew_dict = {gpt_reward_signature}",
-                f"self.extras['gpt_reward'] = self.rew_buf.mean()",
-                f"for rew_state in self.rew_dict: self.extras[rew_state] = self.rew_dict[rew_state].mean()",
-            ]
+            
+            # Generate reward signature based on environment type
+            if use_isaacgym:
+                # Isaac Gym code (existing)
+                reward_signature = [
+                    f"self.rew_buf[:], self.rew_dict = {gpt_reward_signature}",
+                    f"self.extras['gpt_reward'] = self.rew_buf.mean()",
+                    f"for rew_state in self.rew_dict: self.extras[rew_state] = self.rew_dict[rew_state].mean()",
+                ]
+            else:
+                # MuJoCo code: convert numpy to torch, call function, convert back
+                # Check which parameters the generated function expects
+                if len(input_lst) == 1 and 'obs' in input_lst:
+                    # Function only takes obs
+                    reward_signature = [
+                        "# Convert numpy arrays to torch tensors",
+                        "obs_tensor = torch.from_numpy(np.asarray(obs, dtype=np.float32))",
+                        "",
+                        "# Call the generated reward function",
+                        "rewards_tensor, rew_dict_tensor = compute_reward(obs_tensor)",
+                        "",
+                        "# Convert back to numpy",
+                        "rewards = rewards_tensor.detach().cpu().numpy()",
+                        "rew_dict = {k: v.detach().cpu().numpy() for k, v in rew_dict_tensor.items()}",
+                        "",
+                        "return rewards, rew_dict"
+                    ]
+                elif 'obs' in input_lst and 'actions' in input_lst:
+                    # Function takes both obs and actions
+                    reward_signature = [
+                        "# Convert numpy arrays to torch tensors",
+                        "obs_tensor = torch.from_numpy(np.asarray(obs, dtype=np.float32))",
+                        "actions_tensor = torch.from_numpy(np.asarray(actions, dtype=np.float32))",
+                        "",
+                        "# Call the generated reward function",
+                        "rewards_tensor, rew_dict_tensor = compute_reward(obs_tensor, actions_tensor)",
+                        "",
+                        "# Convert back to numpy",
+                        "rewards = rewards_tensor.detach().cpu().numpy()",
+                        "rew_dict = {k: v.detach().cpu().numpy() for k, v in rew_dict_tensor.items()}",
+                        "",
+                        "return rewards, rew_dict"
+                    ]
+                else:
+                    # Fallback: assume only obs is needed (most common case)
+                    reward_signature = [
+                        "# Convert numpy arrays to torch tensors",
+                        "obs_tensor = torch.from_numpy(np.asarray(obs, dtype=np.float32))",
+                        "",
+                        "# Call the generated reward function",
+                        "rewards_tensor, rew_dict_tensor = compute_reward(obs_tensor)",
+                        "",
+                        "# Convert back to numpy",
+                        "rewards = rewards_tensor.detach().cpu().numpy()",
+                        "rew_dict = {k: v.detach().cpu().numpy() for k, v in rew_dict_tensor.items()}",
+                        "",
+                        "return rewards, rew_dict"
+                    ]
+            
             indent = " " * 8
             reward_signature = "\n".join([indent + line for line in reward_signature])
             if "def compute_reward(self)" in task_code_string:
@@ -265,6 +320,7 @@ def main(cfg):
                 file.writelines(task_code_string_iter + '\n')
                 file.writelines("from typing import Tuple, Dict" + '\n')
                 file.writelines("import math" + '\n')
+                file.writelines("import numpy as np" + '\n')
                 file.writelines("import torch" + '\n')
                 file.writelines("from torch import Tensor" + '\n')
                 if "@torch.jit.script" not in code_string:
@@ -296,12 +352,18 @@ def main(cfg):
                                                 f'max_iterations={cfg.max_iterations}'],
                                                 stdout=f, stderr=f)
                 else:
-                    # MuJoCo training - requires separate training pipeline
-                    # For now, create a placeholder that indicates training needs to be done separately
-                    logging.warning(f"MuJoCo environment detected: Training pipeline not yet implemented. Generated reward code saved to {output_file}")
-                    logging.warning("MuJoCo training requires a separate training setup (e.g., using stable-baselines3, rl_games, or custom training loop)")
-                    # Create a dummy process that exits immediately
-                    process = subprocess.Popen(['python', '-c', 'import sys; print("MuJoCo training not implemented in this pipeline"); sys.exit(1)'],
+                    # MuJoCo training using rl_games
+                    train_script = f'{EUREKA_ROOT_DIR}/train_mujoco.py'
+                    config_file = f'{EUREKA_ROOT_DIR}/cfg/train/ant_mujoco_ppo.yaml'
+                    process = subprocess.Popen(['python', '-u', train_script,
+                                                f'--env_file={output_file}',
+                                                f'--config={config_file}',
+                                                f'--num_envs=1',
+                                                f'--seed=42',
+                                                f'--wandb_activate={cfg.use_wandb}',
+                                                f'--wandb_entity={cfg.wandb_username}',
+                                                f'--wandb_project={cfg.wandb_project}',
+                                                f'--max_iterations={cfg.max_iterations}'],
                                                 stdout=f, stderr=f)
             
             # Wait for training to complete properly
@@ -494,8 +556,17 @@ def main(cfg):
                                             ],
                                             stdout=f, stderr=f)
             else:
-                logging.warning(f"MuJoCo environment: Evaluation training not yet implemented. Skipping evaluation run {i}.")
-                process = subprocess.Popen(['python', '-c', 'import sys; print("MuJoCo evaluation not implemented"); sys.exit(1)'],
+                # MuJoCo evaluation training using rl_games
+                train_script = f'{EUREKA_ROOT_DIR}/train_mujoco.py'
+                config_file = f'{EUREKA_ROOT_DIR}/cfg/train/ant_mujoco_ppo.yaml'
+                process = subprocess.Popen(['python', '-u', train_script,
+                                            f'--env_file={output_file}',
+                                            f'--config={config_file}',
+                                            f'--num_envs=1',
+                                            f'--seed={i}',
+                                            f'--wandb_activate={cfg.use_wandb}',
+                                            f'--wandb_entity={cfg.wandb_username}',
+                                            f'--wandb_project={cfg.wandb_project}'],
                                             stdout=f, stderr=f)
 
         # Wait for training to complete properly

@@ -179,7 +179,7 @@ class AntGPT(VecTask):
             self.extremities_index[i] = self.gym.find_actor_rigid_body_handle(self.envs[0], self.ant_handles[0], extremity_names[i])
 
     def compute_reward(self, actions):
-        self.rew_buf[:], self.rew_dict = compute_reward(self.root_states, self.actions, self.heading_vec, self.up_vec, self.potentials, self.prev_potentials, self.dt, self.up_axis_idx)
+        self.rew_buf[:], self.rew_dict = compute_reward(self.obs_buf)
         self.extras['gpt_reward'] = self.rew_buf.mean()
         for rew_state in self.rew_dict: self.extras[rew_state] = self.rew_dict[rew_state].mean()
         self.gt_rew_buf, self.reset_buf[:], self.consecutive_successes[:] = compute_success(
@@ -365,91 +365,28 @@ import math
 import torch
 from torch import Tensor
 @torch.jit.script
-def compute_reward(
-    root_states: torch.Tensor,
-    actions: torch.Tensor,
-    heading_vec: torch.Tensor,
-    up_vec: torch.Tensor,
-    potentials: torch.Tensor,
-    prev_potentials: torch.Tensor,
-    dt: float,
-    up_axis_idx: int,
-) -> Tuple[torch.Tensor, Dict[str, torch.Tensor]]:
+def compute_reward(obs_buf: torch.Tensor) -> Tuple[torch.Tensor, Dict[str, torch.Tensor]]:
     '''
-    Reward function for the Ant task: run forward as fast as possible.
-
-    Components:
-    - progress: distance-to-target progress using potential differences (higher is better).
-    - forward_speed: linear velocity projected onto the heading direction (relu to avoid rewarding backwards motion).
-    - speed_shaped: an exponential shaping of forward speed with temperature to normalize and stabilize learning.
-    - lateral_bonus: exponential bonus (with its own temperature) for small lateral velocity (encourages straight running).
-    - upright: bonus for keeping the torso upright (based on alignment with world up).
-    - action_penalty: penalize large control efforts.
-    - height_penalty: penalize being too low (proxy for falling).
-
-    The total reward is a weighted sum of the above, prioritizing fast forward motion while promoting stability and efficiency.
+    Reward function for making the ant run forward as fast as possible.
+    Rewards the forward velocity (x-component in the ant's local frame) and penalizes angular velocity to encourage stability.
     '''
-    # Extract linear velocity
-    vel = root_states[:, 7:10]
-
-    # Forward speed along the desired heading direction
-    forward_speed = torch.sum(vel * heading_vec, dim=-1)
-
-    # Progress towards the target (standard potential-based progress)
-    progress = (potentials - prev_potentials) * dt
-
-    # Lateral speed (velocity perpendicular to heading direction)
-    proj_forward = heading_vec * forward_speed.unsqueeze(-1)
-    lateral_vel = vel - proj_forward
-    lateral_speed = torch.norm(lateral_vel, dim=-1)
-
-    # Uprightness based on body-up vector aligned with world up-axis
-    upright = torch.clamp(up_vec[:, up_axis_idx], 0.0, 1.0)
-
-    # Torso height (penalize being too low)
-    torso_z = root_states[:, 2]
-    min_height = 0.25
-    height_penalty = torch.relu(min_height - torso_z)
-
-    # Action effort penalty
-    action_penalty = torch.sum(actions * actions, dim=-1)
-
-    # Exponential shapings with explicit temperatures
-    speed_temp = 1.0
-    speed_shaped = 1.0 - torch.exp(-torch.clamp(forward_speed, min=0.0) / speed_temp)
-
-    lateral_temp = 1.0
-    lateral_bonus = torch.exp(-lateral_speed / lateral_temp)
-
-    # Weights for components
-    w_progress = 1.0
-    w_forward = 0.5
-    w_speed_shaped = 1.0
-    w_lateral = 0.2
-    w_upright = 0.2
-    w_action = 0.005
-    w_height = 2.0
-
-    # Total reward
-    total_reward = (
-        w_progress * progress
-        + w_forward * torch.relu(forward_speed)
-        + w_speed_shaped * speed_shaped
-        + w_lateral * lateral_bonus
-        + w_upright * upright
-        - w_action * action_penalty
-        - w_height * height_penalty
-    )
-
+    # Extract forward velocity (local x-axis velocity) from observation buffer
+    forward_vel = obs_buf[:, 1]
+    
+    # Extract local angular velocity norm for stability penalty
+    ang_vel_norm = torch.norm(obs_buf[:, 4:7], dim=-1)
+    
+    # Apply small penalty for angular velocity to prevent excessive spinning
+    ang_vel_penalty = -0.005 * ang_vel_norm
+    
+    # Total reward combines forward velocity incentive with angular velocity penalty
+    total_reward = forward_vel + ang_vel_penalty
+    
+    # Create reward dictionary for individual components
     rew_dict: Dict[str, torch.Tensor] = {
-        "progress": progress,
-        "forward_speed": torch.relu(forward_speed),
-        "speed_shaped": speed_shaped,
-        "lateral_bonus": lateral_bonus,
-        "upright": upright,
-        "action_penalty": -w_action * action_penalty,
-        "height_penalty": -w_height * height_penalty,
+        "forward_velocity": forward_vel,
+        "angular_velocity_penalty": ang_vel_penalty,
         "total_reward": total_reward
     }
-
+    
     return total_reward, rew_dict

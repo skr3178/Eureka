@@ -10,7 +10,7 @@ hydra:
 
 # LLM parameters
 # model: gpt-4-0314
-model: gpt-5  # LLM model (other options are gpt-4, gpt-4-0613, gpt-3.5-turbo-16k-0613)
+model: tngtech/deepseek-r1t2-chimera:free  # LLM model (using OpenRouter)
 temperature: 1  # Reduced from 1.0 for more consistent structure
 suffix: GPT  # suffix for generated files (indicates LLM model)
 

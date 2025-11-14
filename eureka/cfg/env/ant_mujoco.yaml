@@ -1,0 +1,4 @@
+task: AntEnv # Environment class Name in the environment file
+env_name: ant # Environment file name (should match the .py file name in mujoco directory)
+description: to make the ant run forward as fast as possible
+
