@@ -107,3 +107,33 @@ python eureka.py env=your_new_task
 - ToDo: Compare the results from default rewards with the LLM predicts rewards for 
 1. Humanoid
 2. Hand Motion
+
+
+
+# python test the groud truth implemented in the LLM reward structure and yet shows very little correlation. 
+
+```
+python3 test_ground_truth_reward.py
+```
+
+Differences
+Ground truth rewards:
+Mean: 0.89, Std: 0.90
+Range: [-2.54, 2.71] (can be negative due to energy penalty)
+Wide variance
+Our implementation:
+Mean: 0.67, Std: 0.47
+Range: [0.0, 1.01] (always positive, clamped)
+Narrower variance
+Component issues:
+Key reward: 0.000990 (should be ~0.5–1.0) — wrong observation indices
+Energy reward: 0.000000 (should be negative) — wrong torque indices
+Sustain reward: 0.669000 — seems reasonable
+Comparison with LLM rewards
+LLM rewards are simpler and clamped to [0, 1.2–1.5]
+Our GT implementation should match the exact structure from piano_with_shadow_hands.py but uses incorrect observation indices
+Main problem
+The observation space is 319 dimensions, but the reward function uses hardcoded indices that don’t match the actual structure. We need to:
+Inspect the actual observation structure
+Find the correct indices for piano state, activation, and hand torques
+Remove clamping to allow negative rewards (energy penalty)
