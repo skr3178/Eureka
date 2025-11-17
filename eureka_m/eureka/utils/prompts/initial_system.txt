@@ -24,4 +24,19 @@ CRITICAL PARAMETER REQUIREMENT:
 
 Since the reward function will be decorated with @torch.jit.script,
 please make sure that the code is compatible with TorchScript (e.g., use torch tensor instead of numpy array). 
-Make sure any new tensor or variable you introduce is on the same device as the input tensors. 
+Make sure any new tensor or variable you introduce is on the same device as the input tensors.
+
+CRITICAL REWARD BOUNDING REQUIREMENT:
+- ALL reward components MUST be bounded to prevent numerical instability and reward explosion
+- Use BOUNDED GAUSSIAN form for error-based rewards: exp(-0.5 * (error/sigma)^2).clamp(0.0, 1.0)
+- DO NOT use unbounded exponential rewards like exp(-temperature * error) without clamping
+- Final total reward MUST be clamped to a reasonable range (e.g., [0.0, 2.0]) similar to ground truth rewards
+- Each reward component should be individually bounded before combination
+- Example bounded Gaussian: reward = torch.exp(-0.5 * torch.pow(error / sigma, 2)).clamp(0.0, 1.0)
+
+RECOMMENDED REWARD COMPONENTS:
+- Include an ENERGY PENALTY component to encourage efficient movement and prevent excessive actuator usage
+- Energy penalty should be computed from actuator power or action magnitudes
+- Typical energy penalty scale: 5e-3 to 1e-2 (small penalty to encourage efficiency without dominating the reward)
+- Energy penalty formula: energy_penalty = energy_penalty_coef * sum(actuator_power) or energy_penalty_coef * sum(actions^2)
+- Subtract energy penalty from total reward: total_reward = positive_components - energy_penalty 

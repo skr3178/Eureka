@@ -115,3 +115,12 @@ python eureka.py env=your_new_task
 - ToDo: Compare the results from default rewards with the LLM predicts rewards for 
 1. Humanoid
 2. Hand Motion
+
+
+
+## Script to evaluate a saved checkpoint
+
+```
+./eval_latest_checkpoint.sh
+
+```

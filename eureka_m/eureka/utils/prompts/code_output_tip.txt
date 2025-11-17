@@ -31,12 +31,23 @@ CRITICAL PARAMETER REQUIREMENT:
         - Example: piano_state = obs[..., 0:88], goal = obs[..., 88:177], etc.
 
 Some helpful tips for writing the reward function code:
-    (1) You may find it helpful to normalize the reward to a fixed range by applying transformations like torch.exp to the overall reward or its components
-    (2) If you choose to transform a reward component, then you must also introduce a temperature parameter inside the transformation function; this parameter must be a named variable in the reward function and it must not be an input variable. Each transformed reward component should have its own temperature variable
-    (3) Extract observation components from 'obs' using slicing operations based on the observation structure provided
-    (4) Most importantly, the reward function MUST have signature: def compute_reward(obs: torch.Tensor) -> ...
+    (1) CRITICAL: Use BOUNDED GAUSSIAN rewards for error-based components to prevent reward explosion:
+        - Instead of: reward = torch.exp(-temp * error)  # UNBOUNDED - DO NOT USE
+        - Use: reward = torch.exp(-0.5 * torch.pow(error / sigma, 2)).clamp(0.0, 1.0)  # BOUNDED
+        - Define sigma parameters (e.g., sigma = margin / 3.0) similar to ground truth tolerance functions
+        - Example: key_sigma = torch.tensor(0.05 / 3.0, device=device) for key press accuracy
+    (2) ALWAYS clamp individual reward components to [0.0, 1.0] before combining them
+    (3) ALWAYS clamp the final total_reward to a bounded range (e.g., [0.0, 2.0]) to match ground truth behavior
+    (4) RECOMMENDED: Include an ENERGY PENALTY component to encourage efficient movement:
+        - Energy penalty scale: energy_penalty_coef = torch.tensor(5e-3, device=device)  # Typical value
+        - If actuator power is in observation: energy_penalty = energy_penalty_coef * torch.sum(actuator_power, dim=-1)
+        - If using actions: energy_penalty = energy_penalty_coef * torch.sum(actions ** 2, dim=-1)
+        - Subtract from total: total_reward = positive_rewards - energy_penalty
+        - Keep energy penalty small (5e-3 to 1e-2) so it doesn't dominate the reward signal
+    (5) Extract observation components from 'obs' using slicing operations based on the observation structure provided
+    (6) Most importantly, the reward function MUST have signature: def compute_reward(obs: torch.Tensor) -> ...
         The wrapper code can only provide 'obs' - it cannot provide decomposed parameters
-    (5) ALWAYS include the @torch.jit.script decorator at the beginning
-    (6) ALWAYS include proper type annotations for all parameters
-    (7) ALWAYS return a tuple with (total_reward, reward_dict)
-    (8) ALWAYS wrap your code in ```python ... ``` blocks
+    (7) ALWAYS include the @torch.jit.script decorator at the beginning
+    (8) ALWAYS include proper type annotations for all parameters
+    (9) ALWAYS return a tuple with (total_reward, reward_dict)
+    (10) ALWAYS wrap your code in ```python ... ``` blocks

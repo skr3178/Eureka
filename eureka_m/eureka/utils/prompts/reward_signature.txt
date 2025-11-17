@@ -25,20 +25,24 @@ def compute_reward(obs: torch.Tensor) -> Tuple[torch.Tensor, Dict[str, torch.Ten
     # You must analyze the observation structure to determine correct indices
     
     # ----------------------------
-    # Temperature/Scaling parameters (if needed)
+    # Bounded Gaussian reward parameters
     # ----------------------------
-    # Define any temperature parameters, scaling factors, or hyperparameters here
-    # Example: temp = 0.15
+    # Define sigma parameters for bounded Gaussian rewards (similar to ground truth tolerance functions)
+    # Example: key_margin = torch.tensor(0.05, device=device)
+    #          key_sigma = key_margin / 3.0  # Gaussian width parameter
+    # Use margins similar to ground truth (typically 0.01-0.05 range)
     
     # ----------------------------
-    # Reward Component 1
+    # Reward Component 1 (Bounded Gaussian)
     # ----------------------------
     # Your reward computation logic here
+    # CRITICAL: Use bounded Gaussian form for error-based rewards
     # Example (replace with your actual design):
     # component1 = obs[..., 0:88]
     # component2 = obs[..., 88:89]
-    # distance = torch.norm(component1 - component2, dim=-1)
-    # reward_component1 = torch.exp(-distance)
+    # error = torch.abs(component1 - component2)
+    # sigma = torch.tensor(0.05 / 3.0, device=obs.device)
+    # reward_component1 = torch.exp(-0.5 * torch.pow(error / sigma, 2)).clamp(0.0, 1.0)  # BOUNDED
     
     # ----------------------------
     # Reward Component 2 (add more components as needed)
@@ -46,10 +50,28 @@ def compute_reward(obs: torch.Tensor) -> Tuple[torch.Tensor, Dict[str, torch.Ten
     # Additional reward components...
     
     # ----------------------------
-    # Combine components (weighted sum)
+    # Energy Penalty (RECOMMENDED - encourages efficient movement)
+    # ----------------------------
+    # Energy penalty to discourage excessive actuator usage
+    # If actuator power is available in observation (check observation structure):
+    #   actuator_power = obs[..., start_idx:end_idx]  # Extract actuator power from obs
+    #   energy_penalty_coef = torch.tensor(5e-3, device=obs.device)  # Typical scale
+    #   energy_penalty = energy_penalty_coef * torch.sum(actuator_power, dim=-1)
+    # If actions are needed but not in obs, you may need to compute from joint velocities:
+    #   # Note: Actions may not be directly available in obs, check observation structure
+    #   # Alternative: energy_penalty = energy_penalty_coef * torch.sum(joint_velocities ** 2, dim=-1)
+    # Keep energy penalty small (5e-3 to 1e-2) relative to other reward components
+    
+    # ----------------------------
+    # Combine components (weighted sum, all bounded)
     # ----------------------------
     # Combine all reward components into total reward
-    # Example: total_reward = 3.0 * reward_component1 + 1.0 * reward_component2
+    # CRITICAL: Clamp components before combination to ensure bounded output
+    # Example: 
+    # reward_component1_clamped = torch.clamp(reward_component1, 0.0, 1.0)
+    # reward_component2_clamped = torch.clamp(reward_component2, 0.0, 1.0)
+    # total_reward = 0.5 * reward_component1_clamped + 0.3 * reward_component2_clamped
+    # total_reward = torch.clamp(total_reward, 0.0, 2.0)  # Final clamp to match ground truth range
     
     # Placeholder - you must implement your actual reward logic
     reward = torch.zeros(obs.shape[0], device=obs.device)

@@ -148,7 +148,8 @@ class MujocoAlgoObserver(AlgoObserver):
             self.writer.add_scalar('gt_reward', self.last_mean_gt_reward, frame)
         if self.last_mean_gpt_reward > -1000000000:
             self.writer.add_scalar('gpt_reward', self.last_mean_gpt_reward, frame)
-        if self.last_consecutive_successes > 0:
+        # Always log consecutive_successes (can be 0, which is valid)
+        if self.last_consecutive_successes >= 0:  # Changed from > 0 to >= 0
             self.writer.add_scalar('consecutive_successes', self.last_consecutive_successes, frame)
 
 

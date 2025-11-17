@@ -347,119 +347,78 @@ import numpy as np
 import torch
 from torch import Tensor
 @torch.jit.script
-def compute_reward(
-    obs: torch.Tensor
-) -> Tuple[torch.Tensor, Dict[str, torch.Tensor]]:
+def compute_reward(obs: torch.Tensor) -> Tuple[torch.Tensor, Dict[str, torch.Tensor]]:
     '''
-    Improved piano playing reward with better component balance and temporal alignment.
+    Computes reward for piano playing task:
+    1. Encourages pressing correct piano keys (matching goal state)
+    2. Matches sustain pedal state with goal sustain
+    3. Includes energy penalty for efficient movement
     
-    Key improvements based on policy feedback:
-    1. Softened exponential rewards using gentler temperatures
-    2. Added note timing alignment component
-    3. Reformed fingering reward to use velocity-direction features
-    4. Rescaled all components to comparable magnitude ranges
-    5. Added dynamic activation weighting based on note importance
-    
-    Observation index assumptions remain consistent with alphabetical ordering:
-    - Goal state (88 keys + sustain) at [88:177]
-    - Current piano state (88 keys + sustain) at [510:599]
-    - Fingering assignments at [0:88] (if enabled)
-    - Joint velocities at [192:216] (left) and [615:639] (right)
+    NOTE: Index ranges assume observation with sorted keys alphabetically:
+    ['goal', 'piano/state', 'piano/sustain_state', ...]
+    If your environment has different ordering, ADJUST INDICES ACCORDINGLY!
     '''
-    
     device = obs.device
-    batch_size = obs.shape[0]
-
-    # ----------------------------
-    # Extract observation components
-    # ----------------------------
-    # Goal states
-    goal_keys = obs[..., 88:176]            # Target note activations (88,)
-    goal_sustain = obs[..., 176:177]        # Target sustain pedal (1,)
-
-    # Current piano states
-    current_keys = obs[..., 510:598]        # Current key presses (88,)
-    current_sustain = obs[..., 599:600]     # Current sustain (1,)
-
-    # Fingering assignments (valid when >=0)
-    fingering = obs[..., 0:88].to(torch.long)
-
-    # Hand joint velocities (for fluid motion penalty)
-    lhs_vel = obs[..., 216:240]   # lh_shadow_hand/joints_vel (192+24=216 to 216+24=240)
-    rhs_vel = obs[..., 639:663]   # rh_shadow_hand/joints_vel (615+24=639 to 639+24=663)
-
-    # ----------------------------
-    # Dynamic scaling parameters
-    # ----------------------------
-    key_temp = torch.tensor(4.0, device=device)
-    timing_temp = torch.tensor(2.0, device=device)
-    sustain_temp = torch.tensor(5.0, device=device)
-    fingering_scale = torch.tensor(0.5, device=device)
-    vel_penalty_scale = torch.tensor(0.02, device=device)
     
     # ----------------------------
-    # 1. Note Activation Accuracy (Smooth)
+    # Extract observation components - CRITICAL: VERIFY YOUR ENV'S SLICING INDICES
     # ----------------------------
-    active_notes = goal_keys > 0.1  # Consider all notes with >10% activation target
-    activation_error = torch.where(
-        active_notes,
-        torch.abs(current_keys - goal_keys),
-        torch.zeros_like(goal_keys)
-    )
-    active_count = torch.sum(active_notes.float(), dim=-1) + 1e-7
-    activation_reward = torch.exp(-key_temp * activation_error.mean(dim=-1))
-
-    # ----------------------------
-    # 2. Temporal Alignment Reward
-    # ----------------------------
-    # Cross-entropy style reward for correct timing
-    timing_probs = torch.sigmoid(current_keys * 5)  # Sharpen key press values
-    timing_reward = torch.where(
-        active_notes,
-        goal_keys * torch.log(timing_probs + 1e-7) + 
-        (1 - goal_keys) * torch.log(1 - timing_probs + 1e-7),
-        torch.zeros_like(goal_keys)
-    )
-    timing_reward = -timing_temp * torch.mean(timing_reward, dim=-1)
-
-    # ----------------------------
-    # 3. Sustain Matching Reward
-    # ----------------------------
-    sustain_error = torch.abs(current_sustain - goal_sustain)
-    sustain_reward = torch.exp(-sustain_temp * sustain_error).squeeze(-1)
-
-    # ----------------------------
-    # 4. Fluid Fingering Motion
-    # ----------------------------
-    # Reward moving toward assigned fingers, penalize rapid joint changes
-    valid_fingering_mask = (fingering >= 0) & (fingering <= 9)
-    fingering_activity = valid_fingering_mask.float() * current_keys
+    # GOAL indices [0-88] keys + [89] sustain
+    goal_keys = obs[..., 0:88]                # Target keys (first 88 of goal)
+    goal_sustain = obs[..., 88]                # Target sustain pedal (89th element)
     
-    # Velocity direction penalty - reward only when moving toward target positions
-    joint_vel = torch.cat([lhs_vel, rhs_vel], dim=-1)
-    fluence_penalty = vel_penalty_scale * torch.mean(torch.abs(joint_vel), dim=-1)
+    # PIANO states immediately after goal (assuming alphabetical ordering)
+    piano_state = obs[..., 89:177]             # Actual key states (88 keys)
+    piano_sustain_state = obs[..., 177]        # Actual sustain pedal (1 element)
     
-    fingering_reward = fingering_scale * torch.sum(fingering_activity, dim=-1) / active_count
-    fingering_reward -= fluence_penalty
+    # HAND TORQUES: Placeholder indices - VERIFY YOUR ENVIRONMENT LAYOUT
+    # Assuming LH torque starts at 300, RH at 400 (for Shadow Hands 24 joints each)
+    lh_joints_torque = obs[..., 300:324]       # Left hand joint torque
+    rh_joints_torque = obs[..., 400:424]       # Right hand joint torque
 
     # ----------------------------
-    # Combine components
+    # Reward Component 1: Key Press Accuracy (Bounded Gaussian)
     # ----------------------------
+    key_margin = torch.tensor(0.03, device=device)   # Acceptable error margin
+    key_sigma = key_margin / 3.0                     # Gaussian width parameter
+    key_errors = torch.abs(piano_state - goal_keys)
+    # Average across keys using minimum operator for sparse rewards
+    key_reward = torch.exp(-0.5 * torch.pow(key_errors / key_sigma, 2))
+    key_reward = torch.min(key_reward, dim=-1)[0].clamp(0.0, 1.0)  # Component-wise min
+    
+    # ----------------------------
+    # Reward Component 2: Sustain Pedal Accuracy (Bounded Gaussian)
+    # ----------------------------
+    sustain_margin = torch.tensor(0.05, device=device)
+    sustain_sigma = sustain_margin / 3.0
+    sustain_error = torch.abs(piano_sustain_state - goal_sustain)
+    sustain_reward = torch.exp(-0.5 * torch.pow(sustain_error / sustain_sigma, 2)).clamp(0.0, 1.0)
+
+    # ----------------------------
+    # Reward Component 3: Energy Penalty (Efficiency)
+    # ----------------------------
+    energy_penalty_coef = torch.tensor(5e-3, device=device)
+    total_torque = torch.sum(torch.abs(lh_joints_torque), dim=-1) + \
+                   torch.sum(torch.abs(rh_joints_torque), dim=-1)
+    energy_penalty = energy_penalty_coef * total_torque
+
+    # ----------------------------
+    # Combine components (weighted sum, all bounded)
+    # ----------------------------
+    key_reward_clamped = key_reward.clamp(0.0, 1.0)
+    sustain_reward_clamped = sustain_reward.clamp(0.0, 1.0)
+    
     total_reward = (
-        2.0 * activation_reward +
-        1.5 * timing_reward +
-        0.8 * sustain_reward +
-        1.0 * fingering_reward
-    )
+        0.8 * key_reward_clamped + 
+        0.2 * sustain_reward_clamped - 
+        energy_penalty
+    ).clamp(0.0, 2.0)  # Clamp to reasonable maximum range
 
-    # ----------------------------
-    # Return components dictionary
-    # ----------------------------
+    # Return dictionary with components
     rew_dict: Dict[str, torch.Tensor] = {
-        "activation": activation_reward,
-        "timing": timing_reward,
-        "sustain": sustain_reward,
-        "fingering": fingering_reward,
+        "key_reward": key_reward_clamped,
+        "sustain_reward": sustain_reward_clamped,
+        "energy_penalty": energy_penalty,
         "total_reward": total_reward
     }
     
