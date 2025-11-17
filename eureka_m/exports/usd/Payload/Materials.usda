@@ -1,0 +1,1456 @@
+#usda 1.0
+(
+    customLayerData = {
+        string creator = "MuJoCo USD Converter v0.1.0a2"
+    }
+    defaultPrim = "stage"
+    kilogramsPerUnit = 1
+    metersPerUnit = 1
+    upAxis = "Z"
+)
+
+def Xform "stage"
+{
+    def Scope "Materials"
+    {
+        def Material "grid" (
+            prepend references = @./MaterialsLibrary.usdc@</Materials/grid>
+        )
+        {
+        }
+
+        def Material "tn__pianowhite_vF" (
+            prepend references = @./MaterialsLibrary.usdc@</Materials/tn__pianowhite_vF>
+        )
+        {
+        }
+
+        def Material "tn__pianoblack_vF" (
+            prepend references = @./MaterialsLibrary.usdc@</Materials/tn__pianoblack_vF>
+        )
+        {
+        }
+
+        def Material "tn__rh_shadow_handgray_dS" (
+            prepend references = @./MaterialsLibrary.usdc@</Materials/tn__rh_shadow_handgray_dS>
+        )
+        {
+        }
+
+        def Material "tn__rh_shadow_handblack_tT" (
+            prepend references = @./MaterialsLibrary.usdc@</Materials/tn__rh_shadow_handblack_tT>
+        )
+        {
+        }
+
+        def Material "tn__rh_shadow_handmetallic_fY0" (
+            prepend references = @./MaterialsLibrary.usdc@</Materials/tn__rh_shadow_handmetallic_fY0>
+        )
+        {
+        }
+
+        def Material "tn__lh_shadow_handgray_dS" (
+            prepend references = @./MaterialsLibrary.usdc@</Materials/tn__lh_shadow_handgray_dS>
+        )
+        {
+        }
+
+        def Material "tn__lh_shadow_handblack_tT" (
+            prepend references = @./MaterialsLibrary.usdc@</Materials/tn__lh_shadow_handblack_tT>
+        )
+        {
+        }
+
+        def Material "tn__lh_shadow_handmetallic_fY0" (
+            prepend references = @./MaterialsLibrary.usdc@</Materials/tn__lh_shadow_handmetallic_fY0>
+        )
+        {
+        }
+    }
+
+    over "Geometry"
+    {
+        over "tn__unnamed_geom_0_sL1" (
+            prepend apiSchemas = ["MaterialBindingAPI"]
+        )
+        {
+            rel material:binding = </stage/Materials/grid>
+        }
+
+        over "tn__piano_d8"
+        {
+            over "tn__pianowhite_key_0_yO"
+            {
+                over "tn__pianowhite_key_geom_0_lW0" (
+                    prepend apiSchemas = ["MaterialBindingAPI"]
+                )
+                {
+                    rel material:binding = </stage/Materials/tn__pianowhite_vF>
+                }
+            }
+
+            over "tn__pianoblack_key_1_yO"
+            {
+                over "tn__pianoblack_key_geom_1_lW0" (
+                    prepend apiSchemas = ["MaterialBindingAPI"]
+                )
+                {
+                    rel material:binding = </stage/Materials/tn__pianoblack_vF>
+                }
+            }
+
+            over "tn__pianowhite_key_2_yO"
+            {
+                over "tn__pianowhite_key_geom_2_lW0" (
+                    prepend apiSchemas = ["MaterialBindingAPI"]
+                )
+                {
+                    rel material:binding = </stage/Materials/tn__pianowhite_vF>
+                }
+            }
+
+            over "tn__pianowhite_key_3_yO"
+            {
+                over "tn__pianowhite_key_geom_3_lW0" (
+                    prepend apiSchemas = ["MaterialBindingAPI"]
+                )
+                {
+                    rel material:binding = </stage/Materials/tn__pianowhite_vF>
+                }
+            }
+
+            over "tn__pianoblack_key_4_yO"
+            {
+                over "tn__pianoblack_key_geom_4_lW0" (
+                    prepend apiSchemas = ["MaterialBindingAPI"]
+                )
+                {
+                    rel material:binding = </stage/Materials/tn__pianoblack_vF>
+                }
+            }
+
+            over "tn__pianowhite_key_5_yO"
+            {
+                over "tn__pianowhite_key_geom_5_lW0" (
+                    prepend apiSchemas = ["MaterialBindingAPI"]
+                )
+                {
+                    rel material:binding = </stage/Materials/tn__pianowhite_vF>
+                }
+            }
+
+            over "tn__pianoblack_key_6_yO"
+            {
+                over "tn__pianoblack_key_geom_6_lW0" (
+                    prepend apiSchemas = ["MaterialBindingAPI"]
+                )
+                {
+                    rel material:binding = </stage/Materials/tn__pianoblack_vF>
+                }
+            }
+
+            over "tn__pianowhite_key_7_yO"
+            {
+                over "tn__pianowhite_key_geom_7_lW0" (
+                    prepend apiSchemas = ["MaterialBindingAPI"]
+                )
+                {
+                    rel material:binding = </stage/Materials/tn__pianowhite_vF>
+                }
+            }
+
+            over "tn__pianowhite_key_8_yO"
+            {
+                over "tn__pianowhite_key_geom_8_lW0" (
+                    prepend apiSchemas = ["MaterialBindingAPI"]
+                )
+                {
+                    rel material:binding = </stage/Materials/tn__pianowhite_vF>
+                }
+            }
+
+            over "tn__pianoblack_key_9_yO"
+            {
+                over "tn__pianoblack_key_geom_9_lW0" (
+                    prepend apiSchemas = ["MaterialBindingAPI"]
+                )
+                {
+                    rel material:binding = </stage/Materials/tn__pianoblack_vF>
+                }
+            }
+
+            over "tn__pianowhite_key_10_jQ"
+            {
+                over "tn__pianowhite_key_geom_10_WY0" (
+                    prepend apiSchemas = ["MaterialBindingAPI"]
+                )
+                {
+                    rel material:binding = </stage/Materials/tn__pianowhite_vF>
+                }
+            }
+
+            over "tn__pianoblack_key_11_jQ"
+            {
+                over "tn__pianoblack_key_geom_11_WY0" (
+                    prepend apiSchemas = ["MaterialBindingAPI"]
+                )
+                {
+                    rel material:binding = </stage/Materials/tn__pianoblack_vF>
+                }
+            }
+
+            over "tn__pianowhite_key_12_jQ"
+            {
+                over "tn__pianowhite_key_geom_12_WY0" (
+                    prepend apiSchemas = ["MaterialBindingAPI"]
+                )
+                {
+                    rel material:binding = </stage/Materials/tn__pianowhite_vF>
+                }
+            }
+
+            over "tn__pianoblack_key_13_jQ"
+            {
+                over "tn__pianoblack_key_geom_13_WY0" (
+                    prepend apiSchemas = ["MaterialBindingAPI"]
+                )
+                {
+                    rel material:binding = </stage/Materials/tn__pianoblack_vF>
+                }
+            }
+
+            over "tn__pianowhite_key_14_jQ"
+            {
+                over "tn__pianowhite_key_geom_14_WY0" (
+                    prepend apiSchemas = ["MaterialBindingAPI"]
+                )
+                {
+                    rel material:binding = </stage/Materials/tn__pianowhite_vF>
+                }
+            }
+
+            over "tn__pianowhite_key_15_jQ"
+            {
+                over "tn__pianowhite_key_geom_15_WY0" (
+                    prepend apiSchemas = ["MaterialBindingAPI"]
+                )
+                {
+                    rel material:binding = </stage/Materials/tn__pianowhite_vF>
+                }
+            }
+
+            over "tn__pianoblack_key_16_jQ"
+            {
+                over "tn__pianoblack_key_geom_16_WY0" (
+                    prepend apiSchemas = ["MaterialBindingAPI"]
+                )
+                {
+                    rel material:binding = </stage/Materials/tn__pianoblack_vF>
+                }
+            }
+
+            over "tn__pianowhite_key_17_jQ"
+            {
+                over "tn__pianowhite_key_geom_17_WY0" (
+                    prepend apiSchemas = ["MaterialBindingAPI"]
+                )
+                {
+                    rel material:binding = </stage/Materials/tn__pianowhite_vF>
+                }
+            }
+
+            over "tn__pianoblack_key_18_jQ"
+            {
+                over "tn__pianoblack_key_geom_18_WY0" (
+                    prepend apiSchemas = ["MaterialBindingAPI"]
+                )
+                {
+                    rel material:binding = </stage/Materials/tn__pianoblack_vF>
+                }
+            }
+
+            over "tn__pianowhite_key_19_jQ"
+            {
+                over "tn__pianowhite_key_geom_19_WY0" (
+                    prepend apiSchemas = ["MaterialBindingAPI"]
+                )
+                {
+                    rel material:binding = </stage/Materials/tn__pianowhite_vF>
+                }
+            }
+
+            over "tn__pianowhite_key_20_jQ"
+            {
+                over "tn__pianowhite_key_geom_20_WY0" (
+                    prepend apiSchemas = ["MaterialBindingAPI"]
+                )
+                {
+                    rel material:binding = </stage/Materials/tn__pianowhite_vF>
+                }
+            }
+
+            over "tn__pianoblack_key_21_jQ"
+            {
+                over "tn__pianoblack_key_geom_21_WY0" (
+                    prepend apiSchemas = ["MaterialBindingAPI"]
+                )
+                {
+                    rel material:binding = </stage/Materials/tn__pianoblack_vF>
+                }
+            }
+
+            over "tn__pianowhite_key_22_jQ"
+            {
+                over "tn__pianowhite_key_geom_22_WY0" (
+                    prepend apiSchemas = ["MaterialBindingAPI"]
+                )
+                {
+                    rel material:binding = </stage/Materials/tn__pianowhite_vF>
+                }
+            }
+
+            over "tn__pianoblack_key_23_jQ"
+            {
+                over "tn__pianoblack_key_geom_23_WY0" (
+                    prepend apiSchemas = ["MaterialBindingAPI"]
+                )
+                {
+                    rel material:binding = </stage/Materials/tn__pianoblack_vF>
+                }
+            }
+
+            over "tn__pianowhite_key_24_jQ"
+            {
+                over "tn__pianowhite_key_geom_24_WY0" (
+                    prepend apiSchemas = ["MaterialBindingAPI"]
+                )
+                {
+                    rel material:binding = </stage/Materials/tn__pianowhite_vF>
+                }
+            }
+
+            over "tn__pianoblack_key_25_jQ"
+            {
+                over "tn__pianoblack_key_geom_25_WY0" (
+                    prepend apiSchemas = ["MaterialBindingAPI"]
+                )
+                {
+                    rel material:binding = </stage/Materials/tn__pianoblack_vF>
+                }
+            }
+
+            over "tn__pianowhite_key_26_jQ"
+            {
+                over "tn__pianowhite_key_geom_26_WY0" (
+                    prepend apiSchemas = ["MaterialBindingAPI"]
+                )
+                {
+                    rel material:binding = </stage/Materials/tn__pianowhite_vF>
+                }
+            }
+
+            over "tn__pianowhite_key_27_jQ"
+            {
+                over "tn__pianowhite_key_geom_27_WY0" (
+                    prepend apiSchemas = ["MaterialBindingAPI"]
+                )
+                {
+                    rel material:binding = </stage/Materials/tn__pianowhite_vF>
+                }
+            }
+
+            over "tn__pianoblack_key_28_jQ"
+            {
+                over "tn__pianoblack_key_geom_28_WY0" (
+                    prepend apiSchemas = ["MaterialBindingAPI"]
+                )
+                {
+                    rel material:binding = </stage/Materials/tn__pianoblack_vF>
+                }
+            }
+
+            over "tn__pianowhite_key_29_jQ"
+            {
+                over "tn__pianowhite_key_geom_29_WY0" (
+                    prepend apiSchemas = ["MaterialBindingAPI"]
+                )
+                {
+                    rel material:binding = </stage/Materials/tn__pianowhite_vF>
+                }
+            }
+
+            over "tn__pianoblack_key_30_jQ"
+            {
+                over "tn__pianoblack_key_geom_30_WY0" (
+                    prepend apiSchemas = ["MaterialBindingAPI"]
+                )
+                {
+                    rel material:binding = </stage/Materials/tn__pianoblack_vF>
+                }
+            }
+
+            over "tn__pianowhite_key_31_jQ"
+            {
+                over "tn__pianowhite_key_geom_31_WY0" (
+                    prepend apiSchemas = ["MaterialBindingAPI"]
+                )
+                {
+                    rel material:binding = </stage/Materials/tn__pianowhite_vF>
+                }
+            }
+
+            over "tn__pianowhite_key_32_jQ"
+            {
+                over "tn__pianowhite_key_geom_32_WY0" (
+                    prepend apiSchemas = ["MaterialBindingAPI"]
+                )
+                {
+                    rel material:binding = </stage/Materials/tn__pianowhite_vF>
+                }
+            }
+
+            over "tn__pianoblack_key_33_jQ"
+            {
+                over "tn__pianoblack_key_geom_33_WY0" (
+                    prepend apiSchemas = ["MaterialBindingAPI"]
+                )
+                {
+                    rel material:binding = </stage/Materials/tn__pianoblack_vF>
+                }
+            }
+
+            over "tn__pianowhite_key_34_jQ"
+            {
+                over "tn__pianowhite_key_geom_34_WY0" (
+                    prepend apiSchemas = ["MaterialBindingAPI"]
+                )
+                {
+                    rel material:binding = </stage/Materials/tn__pianowhite_vF>
+                }
+            }
+
+            over "tn__pianoblack_key_35_jQ"
+            {
+                over "tn__pianoblack_key_geom_35_WY0" (
+                    prepend apiSchemas = ["MaterialBindingAPI"]
+                )
+                {
+                    rel material:binding = </stage/Materials/tn__pianoblack_vF>
+                }
+            }
+
+            over "tn__pianowhite_key_36_jQ"
+            {
+                over "tn__pianowhite_key_geom_36_WY0" (
+                    prepend apiSchemas = ["MaterialBindingAPI"]
+                )
+                {
+                    rel material:binding = </stage/Materials/tn__pianowhite_vF>
+                }
+            }
+
+            over "tn__pianoblack_key_37_jQ"
+            {
+                over "tn__pianoblack_key_geom_37_WY0" (
+                    prepend apiSchemas = ["MaterialBindingAPI"]
+                )
+                {
+                    rel material:binding = </stage/Materials/tn__pianoblack_vF>
+                }
+            }
+
+            over "tn__pianowhite_key_38_jQ"
+            {
+                over "tn__pianowhite_key_geom_38_WY0" (
+                    prepend apiSchemas = ["MaterialBindingAPI"]
+                )
+                {
+                    rel material:binding = </stage/Materials/tn__pianowhite_vF>
+                }
+            }
+
+            over "tn__pianowhite_key_39_jQ"
+            {
+                over "tn__pianowhite_key_geom_39_WY0" (
+                    prepend apiSchemas = ["MaterialBindingAPI"]
+                )
+                {
+                    rel material:binding = </stage/Materials/tn__pianowhite_vF>
+                }
+            }
+
+            over "tn__pianoblack_key_40_jQ"
+            {
+                over "tn__pianoblack_key_geom_40_WY0" (
+                    prepend apiSchemas = ["MaterialBindingAPI"]
+                )
+                {
+                    rel material:binding = </stage/Materials/tn__pianoblack_vF>
+                }
+            }
+
+            over "tn__pianowhite_key_41_jQ"
+            {
+                over "tn__pianowhite_key_geom_41_WY0" (
+                    prepend apiSchemas = ["MaterialBindingAPI"]
+                )
+                {
+                    rel material:binding = </stage/Materials/tn__pianowhite_vF>
+                }
+            }
+
+            over "tn__pianoblack_key_42_jQ"
+            {
+                over "tn__pianoblack_key_geom_42_WY0" (
+                    prepend apiSchemas = ["MaterialBindingAPI"]
+                )
+                {
+                    rel material:binding = </stage/Materials/tn__pianoblack_vF>
+                }
+            }
+
+            over "tn__pianowhite_key_43_jQ"
+            {
+                over "tn__pianowhite_key_geom_43_WY0" (
+                    prepend apiSchemas = ["MaterialBindingAPI"]
+                )
+                {
+                    rel material:binding = </stage/Materials/tn__pianowhite_vF>
+                }
+            }
+
+            over "tn__pianowhite_key_44_jQ"
+            {
+                over "tn__pianowhite_key_geom_44_WY0" (
+                    prepend apiSchemas = ["MaterialBindingAPI"]
+                )
+                {
+                    rel material:binding = </stage/Materials/tn__pianowhite_vF>
+                }
+            }
+
+            over "tn__pianoblack_key_45_jQ"
+            {
+                over "tn__pianoblack_key_geom_45_WY0" (
+                    prepend apiSchemas = ["MaterialBindingAPI"]
+                )
+                {
+                    rel material:binding = </stage/Materials/tn__pianoblack_vF>
+                }
+            }
+
+            over "tn__pianowhite_key_46_jQ"
+            {
+                over "tn__pianowhite_key_geom_46_WY0" (
+                    prepend apiSchemas = ["MaterialBindingAPI"]
+                )
+                {
+                    rel material:binding = </stage/Materials/tn__pianowhite_vF>
+                }
+            }
+
+            over "tn__pianoblack_key_47_jQ"
+            {
+                over "tn__pianoblack_key_geom_47_WY0" (
+                    prepend apiSchemas = ["MaterialBindingAPI"]
+                )
+                {
+                    rel material:binding = </stage/Materials/tn__pianoblack_vF>
+                }
+            }
+
+            over "tn__pianowhite_key_48_jQ"
+            {
+                over "tn__pianowhite_key_geom_48_WY0" (
+                    prepend apiSchemas = ["MaterialBindingAPI"]
+                )
+                {
+                    rel material:binding = </stage/Materials/tn__pianowhite_vF>
+                }
+            }
+
+            over "tn__pianoblack_key_49_jQ"
+            {
+                over "tn__pianoblack_key_geom_49_WY0" (
+                    prepend apiSchemas = ["MaterialBindingAPI"]
+                )
+                {
+                    rel material:binding = </stage/Materials/tn__pianoblack_vF>
+                }
+            }
+
+            over "tn__pianowhite_key_50_jQ"
+            {
+                over "tn__pianowhite_key_geom_50_WY0" (
+                    prepend apiSchemas = ["MaterialBindingAPI"]
+                )
+                {
+                    rel material:binding = </stage/Materials/tn__pianowhite_vF>
+                }
+            }
+
+            over "tn__pianowhite_key_51_jQ"
+            {
+                over "tn__pianowhite_key_geom_51_WY0" (
+                    prepend apiSchemas = ["MaterialBindingAPI"]
+                )
+                {
+                    rel material:binding = </stage/Materials/tn__pianowhite_vF>
+                }
+            }
+
+            over "tn__pianoblack_key_52_jQ"
+            {
+                over "tn__pianoblack_key_geom_52_WY0" (
+                    prepend apiSchemas = ["MaterialBindingAPI"]
+                )
+                {
+                    rel material:binding = </stage/Materials/tn__pianoblack_vF>
+                }
+            }
+
+            over "tn__pianowhite_key_53_jQ"
+            {
+                over "tn__pianowhite_key_geom_53_WY0" (
+                    prepend apiSchemas = ["MaterialBindingAPI"]
+                )
+                {
+                    rel material:binding = </stage/Materials/tn__pianowhite_vF>
+                }
+            }
+
+            over "tn__pianoblack_key_54_jQ"
+            {
+                over "tn__pianoblack_key_geom_54_WY0" (
+                    prepend apiSchemas = ["MaterialBindingAPI"]
+                )
+                {
+                    rel material:binding = </stage/Materials/tn__pianoblack_vF>
+                }
+            }
+
+            over "tn__pianowhite_key_55_jQ"
+            {
+                over "tn__pianowhite_key_geom_55_WY0" (
+                    prepend apiSchemas = ["MaterialBindingAPI"]
+                )
+                {
+                    rel material:binding = </stage/Materials/tn__pianowhite_vF>
+                }
+            }
+
+            over "tn__pianowhite_key_56_jQ"
+            {
+                over "tn__pianowhite_key_geom_56_WY0" (
+                    prepend apiSchemas = ["MaterialBindingAPI"]
+                )
+                {
+                    rel material:binding = </stage/Materials/tn__pianowhite_vF>
+                }
+            }
+
+            over "tn__pianoblack_key_57_jQ"
+            {
+                over "tn__pianoblack_key_geom_57_WY0" (
+                    prepend apiSchemas = ["MaterialBindingAPI"]
+                )
+                {
+                    rel material:binding = </stage/Materials/tn__pianoblack_vF>
+                }
+            }
+
+            over "tn__pianowhite_key_58_jQ"
+            {
+                over "tn__pianowhite_key_geom_58_WY0" (
+                    prepend apiSchemas = ["MaterialBindingAPI"]
+                )
+                {
+                    rel material:binding = </stage/Materials/tn__pianowhite_vF>
+                }
+            }
+
+            over "tn__pianoblack_key_59_jQ"
+            {
+                over "tn__pianoblack_key_geom_59_WY0" (
+                    prepend apiSchemas = ["MaterialBindingAPI"]
+                )
+                {
+                    rel material:binding = </stage/Materials/tn__pianoblack_vF>
+                }
+            }
+
+            over "tn__pianowhite_key_60_jQ"
+            {
+                over "tn__pianowhite_key_geom_60_WY0" (
+                    prepend apiSchemas = ["MaterialBindingAPI"]
+                )
+                {
+                    rel material:binding = </stage/Materials/tn__pianowhite_vF>
+                }
+            }
+
+            over "tn__pianoblack_key_61_jQ"
+            {
+                over "tn__pianoblack_key_geom_61_WY0" (
+                    prepend apiSchemas = ["MaterialBindingAPI"]
+                )
+                {
+                    rel material:binding = </stage/Materials/tn__pianoblack_vF>
+                }
+            }
+
+            over "tn__pianowhite_key_62_jQ"
+            {
+                over "tn__pianowhite_key_geom_62_WY0" (
+                    prepend apiSchemas = ["MaterialBindingAPI"]
+                )
+                {
+                    rel material:binding = </stage/Materials/tn__pianowhite_vF>
+                }
+            }
+
+            over "tn__pianowhite_key_63_jQ"
+            {
+                over "tn__pianowhite_key_geom_63_WY0" (
+                    prepend apiSchemas = ["MaterialBindingAPI"]
+                )
+                {
+                    rel material:binding = </stage/Materials/tn__pianowhite_vF>
+                }
+            }
+
+            over "tn__pianoblack_key_64_jQ"
+            {
+                over "tn__pianoblack_key_geom_64_WY0" (
+                    prepend apiSchemas = ["MaterialBindingAPI"]
+                )
+                {
+                    rel material:binding = </stage/Materials/tn__pianoblack_vF>
+                }
+            }
+
+            over "tn__pianowhite_key_65_jQ"
+            {
+                over "tn__pianowhite_key_geom_65_WY0" (
+                    prepend apiSchemas = ["MaterialBindingAPI"]
+                )
+                {
+                    rel material:binding = </stage/Materials/tn__pianowhite_vF>
+                }
+            }
+
+            over "tn__pianoblack_key_66_jQ"
+            {
+                over "tn__pianoblack_key_geom_66_WY0" (
+                    prepend apiSchemas = ["MaterialBindingAPI"]
+                )
+                {
+                    rel material:binding = </stage/Materials/tn__pianoblack_vF>
+                }
+            }
+
+            over "tn__pianowhite_key_67_jQ"
+            {
+                over "tn__pianowhite_key_geom_67_WY0" (
+                    prepend apiSchemas = ["MaterialBindingAPI"]
+                )
+                {
+                    rel material:binding = </stage/Materials/tn__pianowhite_vF>
+                }
+            }
+
+            over "tn__pianowhite_key_68_jQ"
+            {
+                over "tn__pianowhite_key_geom_68_WY0" (
+                    prepend apiSchemas = ["MaterialBindingAPI"]
+                )
+                {
+                    rel material:binding = </stage/Materials/tn__pianowhite_vF>
+                }
+            }
+
+            over "tn__pianoblack_key_69_jQ"
+            {
+                over "tn__pianoblack_key_geom_69_WY0" (
+                    prepend apiSchemas = ["MaterialBindingAPI"]
+                )
+                {
+                    rel material:binding = </stage/Materials/tn__pianoblack_vF>
+                }
+            }
+
+            over "tn__pianowhite_key_70_jQ"
+            {
+                over "tn__pianowhite_key_geom_70_WY0" (
+                    prepend apiSchemas = ["MaterialBindingAPI"]
+                )
+                {
+                    rel material:binding = </stage/Materials/tn__pianowhite_vF>
+                }
+            }
+
+            over "tn__pianoblack_key_71_jQ"
+            {
+                over "tn__pianoblack_key_geom_71_WY0" (
+                    prepend apiSchemas = ["MaterialBindingAPI"]
+                )
+                {
+                    rel material:binding = </stage/Materials/tn__pianoblack_vF>
+                }
+            }
+
+            over "tn__pianowhite_key_72_jQ"
+            {
+                over "tn__pianowhite_key_geom_72_WY0" (
+                    prepend apiSchemas = ["MaterialBindingAPI"]
+                )
+                {
+                    rel material:binding = </stage/Materials/tn__pianowhite_vF>
+                }
+            }
+
+            over "tn__pianoblack_key_73_jQ"
+            {
+                over "tn__pianoblack_key_geom_73_WY0" (
+                    prepend apiSchemas = ["MaterialBindingAPI"]
+                )
+                {
+                    rel material:binding = </stage/Materials/tn__pianoblack_vF>
+                }
+            }
+
+            over "tn__pianowhite_key_74_jQ"
+            {
+                over "tn__pianowhite_key_geom_74_WY0" (
+                    prepend apiSchemas = ["MaterialBindingAPI"]
+                )
+                {
+                    rel material:binding = </stage/Materials/tn__pianowhite_vF>
+                }
+            }
+
+            over "tn__pianowhite_key_75_jQ"
+            {
+                over "tn__pianowhite_key_geom_75_WY0" (
+                    prepend apiSchemas = ["MaterialBindingAPI"]
+                )
+                {
+                    rel material:binding = </stage/Materials/tn__pianowhite_vF>
+                }
+            }
+
+            over "tn__pianoblack_key_76_jQ"
+            {
+                over "tn__pianoblack_key_geom_76_WY0" (
+                    prepend apiSchemas = ["MaterialBindingAPI"]
+                )
+                {
+                    rel material:binding = </stage/Materials/tn__pianoblack_vF>
+                }
+            }
+
+            over "tn__pianowhite_key_77_jQ"
+            {
+                over "tn__pianowhite_key_geom_77_WY0" (
+                    prepend apiSchemas = ["MaterialBindingAPI"]
+                )
+                {
+                    rel material:binding = </stage/Materials/tn__pianowhite_vF>
+                }
+            }
+
+            over "tn__pianoblack_key_78_jQ"
+            {
+                over "tn__pianoblack_key_geom_78_WY0" (
+                    prepend apiSchemas = ["MaterialBindingAPI"]
+                )
+                {
+                    rel material:binding = </stage/Materials/tn__pianoblack_vF>
+                }
+            }
+
+            over "tn__pianowhite_key_79_jQ"
+            {
+                over "tn__pianowhite_key_geom_79_WY0" (
+                    prepend apiSchemas = ["MaterialBindingAPI"]
+                )
+                {
+                    rel material:binding = </stage/Materials/tn__pianowhite_vF>
+                }
+            }
+
+            over "tn__pianowhite_key_80_jQ"
+            {
+                over "tn__pianowhite_key_geom_80_WY0" (
+                    prepend apiSchemas = ["MaterialBindingAPI"]
+                )
+                {
+                    rel material:binding = </stage/Materials/tn__pianowhite_vF>
+                }
+            }
+
+            over "tn__pianoblack_key_81_jQ"
+            {
+                over "tn__pianoblack_key_geom_81_WY0" (
+                    prepend apiSchemas = ["MaterialBindingAPI"]
+                )
+                {
+                    rel material:binding = </stage/Materials/tn__pianoblack_vF>
+                }
+            }
+
+            over "tn__pianowhite_key_82_jQ"
+            {
+                over "tn__pianowhite_key_geom_82_WY0" (
+                    prepend apiSchemas = ["MaterialBindingAPI"]
+                )
+                {
+                    rel material:binding = </stage/Materials/tn__pianowhite_vF>
+                }
+            }
+
+            over "tn__pianoblack_key_83_jQ"
+            {
+                over "tn__pianoblack_key_geom_83_WY0" (
+                    prepend apiSchemas = ["MaterialBindingAPI"]
+                )
+                {
+                    rel material:binding = </stage/Materials/tn__pianoblack_vF>
+                }
+            }
+
+            over "tn__pianowhite_key_84_jQ"
+            {
+                over "tn__pianowhite_key_geom_84_WY0" (
+                    prepend apiSchemas = ["MaterialBindingAPI"]
+                )
+                {
+                    rel material:binding = </stage/Materials/tn__pianowhite_vF>
+                }
+            }
+
+            over "tn__pianoblack_key_85_jQ"
+            {
+                over "tn__pianoblack_key_geom_85_WY0" (
+                    prepend apiSchemas = ["MaterialBindingAPI"]
+                )
+                {
+                    rel material:binding = </stage/Materials/tn__pianoblack_vF>
+                }
+            }
+
+            over "tn__pianowhite_key_86_jQ"
+            {
+                over "tn__pianowhite_key_geom_86_WY0" (
+                    prepend apiSchemas = ["MaterialBindingAPI"]
+                )
+                {
+                    rel material:binding = </stage/Materials/tn__pianowhite_vF>
+                }
+            }
+
+            over "tn__pianowhite_key_87_jQ"
+            {
+                over "tn__pianowhite_key_geom_87_WY0" (
+                    prepend apiSchemas = ["MaterialBindingAPI"]
+                )
+                {
+                    rel material:binding = </stage/Materials/tn__pianowhite_vF>
+                }
+            }
+        }
+
+        over "tn__rh_shadow_hand_bM"
+        {
+            over "tn__rh_shadow_handrh_forearm_gb0"
+            {
+                over "tn__rh_shadow_handunnamed_geom_0_ih0F" (
+                    prepend apiSchemas = ["MaterialBindingAPI"]
+                )
+                {
+                    rel material:binding = </stage/Materials/tn__rh_shadow_handgray_dS>
+                }
+
+                over "tn__rh_shadow_handunnamed_geom_1_ih0F" (
+                    prepend apiSchemas = ["MaterialBindingAPI"]
+                )
+                {
+                    rel material:binding = </stage/Materials/tn__rh_shadow_handblack_tT>
+                }
+
+                over "tn__rh_shadow_handrh_wrist_fY0"
+                {
+                    over "tn__rh_shadow_handunnamed_geom_4_ih0F" (
+                        prepend apiSchemas = ["MaterialBindingAPI"]
+                    )
+                    {
+                        rel material:binding = </stage/Materials/tn__rh_shadow_handmetallic_fY0>
+                    }
+
+                    over "tn__rh_shadow_handrh_palm_uW0"
+                    {
+                        over "tn__rh_shadow_handunnamed_geom_10_yi0F" (
+                            prepend apiSchemas = ["MaterialBindingAPI"]
+                        )
+                        {
+                            rel material:binding = </stage/Materials/tn__rh_shadow_handblack_tT>
+                        }
+
+                        over "tn__rh_shadow_handrh_ffknuckle_he0"
+                        {
+                            over "tn__rh_shadow_handunnamed_geom_19_yi0F" (
+                                prepend apiSchemas = ["MaterialBindingAPI"]
+                            )
+                            {
+                                rel material:binding = </stage/Materials/tn__rh_shadow_handmetallic_fY0>
+                            }
+
+                            over "tn__rh_shadow_handrh_ffproximal_xf0"
+                            {
+                                over "tn__rh_shadow_handunnamed_geom_21_yi0F" (
+                                    prepend apiSchemas = ["MaterialBindingAPI"]
+                                )
+                                {
+                                    rel material:binding = </stage/Materials/tn__rh_shadow_handblack_tT>
+                                }
+
+                                over "tn__rh_shadow_handrh_ffmiddle_wc0"
+                                {
+                                    over "tn__rh_shadow_handunnamed_geom_23_yi0F" (
+                                        prepend apiSchemas = ["MaterialBindingAPI"]
+                                    )
+                                    {
+                                        rel material:binding = </stage/Materials/tn__rh_shadow_handblack_tT>
+                                    }
+
+                                    over "tn__rh_shadow_handrh_ffdistal_wc0"
+                                    {
+                                        over "tn__rh_shadow_handunnamed_geom_25_yi0F" (
+                                            prepend apiSchemas = ["MaterialBindingAPI"]
+                                        )
+                                        {
+                                            rel material:binding = </stage/Materials/tn__rh_shadow_handblack_tT>
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        over "tn__rh_shadow_handrh_mfknuckle_he0"
+                        {
+                            over "tn__rh_shadow_handunnamed_geom_27_yi0F" (
+                                prepend apiSchemas = ["MaterialBindingAPI"]
+                            )
+                            {
+                                rel material:binding = </stage/Materials/tn__rh_shadow_handmetallic_fY0>
+                            }
+
+                            over "tn__rh_shadow_handrh_mfproximal_xf0"
+                            {
+                                over "tn__rh_shadow_handunnamed_geom_29_yi0F" (
+                                    prepend apiSchemas = ["MaterialBindingAPI"]
+                                )
+                                {
+                                    rel material:binding = </stage/Materials/tn__rh_shadow_handblack_tT>
+                                }
+
+                                over "tn__rh_shadow_handrh_mfmiddle_wc0"
+                                {
+                                    over "tn__rh_shadow_handunnamed_geom_31_yi0F" (
+                                        prepend apiSchemas = ["MaterialBindingAPI"]
+                                    )
+                                    {
+                                        rel material:binding = </stage/Materials/tn__rh_shadow_handblack_tT>
+                                    }
+
+                                    over "tn__rh_shadow_handrh_mfdistal_wc0"
+                                    {
+                                        over "tn__rh_shadow_handunnamed_geom_33_yi0F" (
+                                            prepend apiSchemas = ["MaterialBindingAPI"]
+                                        )
+                                        {
+                                            rel material:binding = </stage/Materials/tn__rh_shadow_handblack_tT>
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        over "tn__rh_shadow_handrh_rfknuckle_he0"
+                        {
+                            over "tn__rh_shadow_handunnamed_geom_35_yi0F" (
+                                prepend apiSchemas = ["MaterialBindingAPI"]
+                            )
+                            {
+                                rel material:binding = </stage/Materials/tn__rh_shadow_handmetallic_fY0>
+                            }
+
+                            over "tn__rh_shadow_handrh_rfproximal_xf0"
+                            {
+                                over "tn__rh_shadow_handunnamed_geom_37_yi0F" (
+                                    prepend apiSchemas = ["MaterialBindingAPI"]
+                                )
+                                {
+                                    rel material:binding = </stage/Materials/tn__rh_shadow_handblack_tT>
+                                }
+
+                                over "tn__rh_shadow_handrh_rfmiddle_wc0"
+                                {
+                                    over "tn__rh_shadow_handunnamed_geom_39_yi0F" (
+                                        prepend apiSchemas = ["MaterialBindingAPI"]
+                                    )
+                                    {
+                                        rel material:binding = </stage/Materials/tn__rh_shadow_handblack_tT>
+                                    }
+
+                                    over "tn__rh_shadow_handrh_rfdistal_wc0"
+                                    {
+                                        over "tn__rh_shadow_handunnamed_geom_41_yi0F" (
+                                            prepend apiSchemas = ["MaterialBindingAPI"]
+                                        )
+                                        {
+                                            rel material:binding = </stage/Materials/tn__rh_shadow_handblack_tT>
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        over "tn__rh_shadow_handrh_lfmetacarpal_yi0"
+                        {
+                            over "tn__rh_shadow_handunnamed_geom_43_yi0F" (
+                                prepend apiSchemas = ["MaterialBindingAPI"]
+                            )
+                            {
+                                rel material:binding = </stage/Materials/tn__rh_shadow_handblack_tT>
+                            }
+
+                            over "tn__rh_shadow_handrh_lfknuckle_he0"
+                            {
+                                over "tn__rh_shadow_handunnamed_geom_45_yi0F" (
+                                    prepend apiSchemas = ["MaterialBindingAPI"]
+                                )
+                                {
+                                    rel material:binding = </stage/Materials/tn__rh_shadow_handmetallic_fY0>
+                                }
+
+                                over "tn__rh_shadow_handrh_lfproximal_xf0"
+                                {
+                                    over "tn__rh_shadow_handunnamed_geom_47_yi0F" (
+                                        prepend apiSchemas = ["MaterialBindingAPI"]
+                                    )
+                                    {
+                                        rel material:binding = </stage/Materials/tn__rh_shadow_handblack_tT>
+                                    }
+
+                                    over "tn__rh_shadow_handrh_lfmiddle_wc0"
+                                    {
+                                        over "tn__rh_shadow_handunnamed_geom_49_yi0F" (
+                                            prepend apiSchemas = ["MaterialBindingAPI"]
+                                        )
+                                        {
+                                            rel material:binding = </stage/Materials/tn__rh_shadow_handblack_tT>
+                                        }
+
+                                        over "tn__rh_shadow_handrh_lfdistal_wc0"
+                                        {
+                                            over "tn__rh_shadow_handunnamed_geom_51_yi0F" (
+                                                prepend apiSchemas = ["MaterialBindingAPI"]
+                                            )
+                                            {
+                                                rel material:binding = </stage/Materials/tn__rh_shadow_handblack_tT>
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        over "tn__rh_shadow_handrh_thbase_vZ0"
+                        {
+                            over "tn__rh_shadow_handrh_thproximal_xf0"
+                            {
+                                over "tn__rh_shadow_handunnamed_geom_54_yi0F" (
+                                    prepend apiSchemas = ["MaterialBindingAPI"]
+                                )
+                                {
+                                    rel material:binding = </stage/Materials/tn__rh_shadow_handblack_tT>
+                                }
+
+                                over "tn__rh_shadow_handrh_thhub_fY0"
+                                {
+                                    over "tn__rh_shadow_handrh_thmiddle_wc0"
+                                    {
+                                        over "tn__rh_shadow_handunnamed_geom_57_yi0F" (
+                                            prepend apiSchemas = ["MaterialBindingAPI"]
+                                        )
+                                        {
+                                            rel material:binding = </stage/Materials/tn__rh_shadow_handblack_tT>
+                                        }
+
+                                        over "tn__rh_shadow_handrh_thdistal_wc0"
+                                        {
+                                            over "tn__rh_shadow_handunnamed_geom_60_yi0F" (
+                                                prepend apiSchemas = ["MaterialBindingAPI"]
+                                            )
+                                            {
+                                                rel material:binding = </stage/Materials/tn__rh_shadow_handblack_tT>
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        over "tn__lh_shadow_hand_bM"
+        {
+            over "tn__lh_shadow_handlh_forearm_gb0"
+            {
+                over "tn__lh_shadow_handunnamed_geom_0_ih0F" (
+                    prepend apiSchemas = ["MaterialBindingAPI"]
+                )
+                {
+                    rel material:binding = </stage/Materials/tn__lh_shadow_handgray_dS>
+                }
+
+                over "tn__lh_shadow_handunnamed_geom_1_ih0F" (
+                    prepend apiSchemas = ["MaterialBindingAPI"]
+                )
+                {
+                    rel material:binding = </stage/Materials/tn__lh_shadow_handblack_tT>
+                }
+
+                over "tn__lh_shadow_handlh_wrist_fY0"
+                {
+                    over "tn__lh_shadow_handunnamed_geom_4_ih0F" (
+                        prepend apiSchemas = ["MaterialBindingAPI"]
+                    )
+                    {
+                        rel material:binding = </stage/Materials/tn__lh_shadow_handmetallic_fY0>
+                    }
+
+                    over "tn__lh_shadow_handlh_palm_uW0"
+                    {
+                        over "tn__lh_shadow_handunnamed_geom_10_yi0F" (
+                            prepend apiSchemas = ["MaterialBindingAPI"]
+                        )
+                        {
+                            rel material:binding = </stage/Materials/tn__lh_shadow_handblack_tT>
+                        }
+
+                        over "tn__lh_shadow_handlh_ffknuckle_he0"
+                        {
+                            over "tn__lh_shadow_handunnamed_geom_19_yi0F" (
+                                prepend apiSchemas = ["MaterialBindingAPI"]
+                            )
+                            {
+                                rel material:binding = </stage/Materials/tn__lh_shadow_handmetallic_fY0>
+                            }
+
+                            over "tn__lh_shadow_handlh_ffproximal_xf0"
+                            {
+                                over "tn__lh_shadow_handunnamed_geom_21_yi0F" (
+                                    prepend apiSchemas = ["MaterialBindingAPI"]
+                                )
+                                {
+                                    rel material:binding = </stage/Materials/tn__lh_shadow_handblack_tT>
+                                }
+
+                                over "tn__lh_shadow_handlh_ffmiddle_wc0"
+                                {
+                                    over "tn__lh_shadow_handunnamed_geom_23_yi0F" (
+                                        prepend apiSchemas = ["MaterialBindingAPI"]
+                                    )
+                                    {
+                                        rel material:binding = </stage/Materials/tn__lh_shadow_handblack_tT>
+                                    }
+
+                                    over "tn__lh_shadow_handlh_ffdistal_wc0"
+                                    {
+                                        over "tn__lh_shadow_handunnamed_geom_25_yi0F" (
+                                            prepend apiSchemas = ["MaterialBindingAPI"]
+                                        )
+                                        {
+                                            rel material:binding = </stage/Materials/tn__lh_shadow_handblack_tT>
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        over "tn__lh_shadow_handlh_mfknuckle_he0"
+                        {
+                            over "tn__lh_shadow_handunnamed_geom_27_yi0F" (
+                                prepend apiSchemas = ["MaterialBindingAPI"]
+                            )
+                            {
+                                rel material:binding = </stage/Materials/tn__lh_shadow_handmetallic_fY0>
+                            }
+
+                            over "tn__lh_shadow_handlh_mfproximal_xf0"
+                            {
+                                over "tn__lh_shadow_handunnamed_geom_29_yi0F" (
+                                    prepend apiSchemas = ["MaterialBindingAPI"]
+                                )
+                                {
+                                    rel material:binding = </stage/Materials/tn__lh_shadow_handblack_tT>
+                                }
+
+                                over "tn__lh_shadow_handlh_mfmiddle_wc0"
+                                {
+                                    over "tn__lh_shadow_handunnamed_geom_31_yi0F" (
+                                        prepend apiSchemas = ["MaterialBindingAPI"]
+                                    )
+                                    {
+                                        rel material:binding = </stage/Materials/tn__lh_shadow_handblack_tT>
+                                    }
+
+                                    over "tn__lh_shadow_handlh_mfdistal_wc0"
+                                    {
+                                        over "tn__lh_shadow_handunnamed_geom_33_yi0F" (
+                                            prepend apiSchemas = ["MaterialBindingAPI"]
+                                        )
+                                        {
+                                            rel material:binding = </stage/Materials/tn__lh_shadow_handblack_tT>
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        over "tn__lh_shadow_handlh_rfknuckle_he0"
+                        {
+                            over "tn__lh_shadow_handunnamed_geom_35_yi0F" (
+                                prepend apiSchemas = ["MaterialBindingAPI"]
+                            )
+                            {
+                                rel material:binding = </stage/Materials/tn__lh_shadow_handmetallic_fY0>
+                            }
+
+                            over "tn__lh_shadow_handlh_rfproximal_xf0"
+                            {
+                                over "tn__lh_shadow_handunnamed_geom_37_yi0F" (
+                                    prepend apiSchemas = ["MaterialBindingAPI"]
+                                )
+                                {
+                                    rel material:binding = </stage/Materials/tn__lh_shadow_handblack_tT>
+                                }
+
+                                over "tn__lh_shadow_handlh_rfmiddle_wc0"
+                                {
+                                    over "tn__lh_shadow_handunnamed_geom_39_yi0F" (
+                                        prepend apiSchemas = ["MaterialBindingAPI"]
+                                    )
+                                    {
+                                        rel material:binding = </stage/Materials/tn__lh_shadow_handblack_tT>
+                                    }
+
+                                    over "tn__lh_shadow_handlh_rfdistal_wc0"
+                                    {
+                                        over "tn__lh_shadow_handunnamed_geom_41_yi0F" (
+                                            prepend apiSchemas = ["MaterialBindingAPI"]
+                                        )
+                                        {
+                                            rel material:binding = </stage/Materials/tn__lh_shadow_handblack_tT>
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        over "tn__lh_shadow_handlh_lfmetacarpal_yi0"
+                        {
+                            over "tn__lh_shadow_handunnamed_geom_43_yi0F" (
+                                prepend apiSchemas = ["MaterialBindingAPI"]
+                            )
+                            {
+                                rel material:binding = </stage/Materials/tn__lh_shadow_handblack_tT>
+                            }
+
+                            over "tn__lh_shadow_handlh_lfknuckle_he0"
+                            {
+                                over "tn__lh_shadow_handunnamed_geom_45_yi0F" (
+                                    prepend apiSchemas = ["MaterialBindingAPI"]
+                                )
+                                {
+                                    rel material:binding = </stage/Materials/tn__lh_shadow_handmetallic_fY0>
+                                }
+
+                                over "tn__lh_shadow_handlh_lfproximal_xf0"
+                                {
+                                    over "tn__lh_shadow_handunnamed_geom_47_yi0F" (
+                                        prepend apiSchemas = ["MaterialBindingAPI"]
+                                    )
+                                    {
+                                        rel material:binding = </stage/Materials/tn__lh_shadow_handblack_tT>
+                                    }
+
+                                    over "tn__lh_shadow_handlh_lfmiddle_wc0"
+                                    {
+                                        over "tn__lh_shadow_handunnamed_geom_49_yi0F" (
+                                            prepend apiSchemas = ["MaterialBindingAPI"]
+                                        )
+                                        {
+                                            rel material:binding = </stage/Materials/tn__lh_shadow_handblack_tT>
+                                        }
+
+                                        over "tn__lh_shadow_handlh_lfdistal_wc0"
+                                        {
+                                            over "tn__lh_shadow_handunnamed_geom_51_yi0F" (
+                                                prepend apiSchemas = ["MaterialBindingAPI"]
+                                            )
+                                            {
+                                                rel material:binding = </stage/Materials/tn__lh_shadow_handblack_tT>
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        over "tn__lh_shadow_handlh_thbase_vZ0"
+                        {
+                            over "tn__lh_shadow_handlh_thproximal_xf0"
+                            {
+                                over "tn__lh_shadow_handunnamed_geom_54_yi0F" (
+                                    prepend apiSchemas = ["MaterialBindingAPI"]
+                                )
+                                {
+                                    rel material:binding = </stage/Materials/tn__lh_shadow_handblack_tT>
+                                }
+
+                                over "tn__lh_shadow_handlh_thhub_fY0"
+                                {
+                                    over "tn__lh_shadow_handlh_thmiddle_wc0"
+                                    {
+                                        over "tn__lh_shadow_handunnamed_geom_57_yi0F" (
+                                            prepend apiSchemas = ["MaterialBindingAPI"]
+                                        )
+                                        {
+                                            rel material:binding = </stage/Materials/tn__lh_shadow_handblack_tT>
+                                        }
+
+                                        over "tn__lh_shadow_handlh_thdistal_wc0"
+                                        {
+                                            over "tn__lh_shadow_handunnamed_geom_60_yi0F" (
+                                                prepend apiSchemas = ["MaterialBindingAPI"]
+                                            )
+                                            {
+                                                rel material:binding = </stage/Materials/tn__lh_shadow_handblack_tT>
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+

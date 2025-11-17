@@ -1,0 +1,4 @@
+task: HumanoidEnv # Environment class Name in the environment file
+env_name: humanoid_mujoco # Environment file name (should match the .py file name in mujoco directory)
+description: to make the humanoid run as fast as possible
+

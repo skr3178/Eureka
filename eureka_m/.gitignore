@@ -1,0 +1,7 @@
+outputs/
+runs/
+**/__pycache__/
+*.egg-info/
+wandb
+key
+isaacgymenvs/

@@ -1,0 +1,64 @@
+@torch.jit.script
+def compute_reward(obs: torch.Tensor) -> Tuple[torch.Tensor, Dict[str, torch.Tensor]]:
+    '''
+    Computes reward for the task.
+    
+    CRITICAL REQUIREMENT: This function MUST take only 'obs' as input parameter.
+    You MUST extract all components from 'obs' inside the function using slicing.
+    DO NOT create separate parameters for different observation components.
+    
+    Args:
+        obs: Observation tensor of shape (batch_size, obs_dim) - flattened observation vector
+        You must extract all needed components from this tensor using slicing operations.
+        
+    Returns:
+        Tuple of (total_reward, reward_components_dict)
+        - total_reward: torch.Tensor of shape (batch_size,) - scalar reward per batch element
+        - reward_components_dict: Dict[str, torch.Tensor] where each value has shape (batch_size,)
+    '''
+    # ----------------------------
+    # Extract observation components (assumes alphabetical ordering)
+    # ----------------------------
+    # Extract components from obs using slicing
+    # Example: component1 = obs[..., 0:88]  # First 88 elements
+    # Example: component2 = obs[..., 88:89]  # Next element
+    # You must analyze the observation structure to determine correct indices
+    
+    # ----------------------------
+    # Temperature/Scaling parameters (if needed)
+    # ----------------------------
+    # Define any temperature parameters, scaling factors, or hyperparameters here
+    # Example: temp = 0.15
+    
+    # ----------------------------
+    # Reward Component 1
+    # ----------------------------
+    # Your reward computation logic here
+    # Example (replace with your actual design):
+    # component1 = obs[..., 0:88]
+    # component2 = obs[..., 88:89]
+    # distance = torch.norm(component1 - component2, dim=-1)
+    # reward_component1 = torch.exp(-distance)
+    
+    # ----------------------------
+    # Reward Component 2 (add more components as needed)
+    # ----------------------------
+    # Additional reward components...
+    
+    # ----------------------------
+    # Combine components (weighted sum)
+    # ----------------------------
+    # Combine all reward components into total reward
+    # Example: total_reward = 3.0 * reward_component1 + 1.0 * reward_component2
+    
+    # Placeholder - you must implement your actual reward logic
+    reward = torch.zeros(obs.shape[0], device=obs.device)
+    
+    # ----------------------------
+    # Return components dictionary
+    # ----------------------------
+    rew_dict: Dict[str, torch.Tensor] = {
+        "total_reward": reward
+    }
+    
+    return reward, rew_dict

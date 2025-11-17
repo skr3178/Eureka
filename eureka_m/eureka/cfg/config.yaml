@@ -1,0 +1,27 @@
+defaults:
+  - _self_
+  - env: ant_mujoco
+  - override hydra/launcher: local
+  - override hydra/output: local
+
+hydra:
+  job:
+    chdir: True
+
+# LLM parameters
+# model: gpt-4-0314
+model: tngtech/deepseek-r1t2-chimera:free  # LLM model (using OpenRouter)
+temperature: 1  # Reduced from 1.0 for more consistent structure
+suffix: GPT  # suffix for generated files (indicates LLM model)
+
+# Eureka parameters
+iteration: 2 # how many iterations of Eureka to run
+sample: 3 # number of Eureka samples to generate per iteration
+max_iterations: 1000 # RL Policy training iterations (decrease this to make the feedback loop faster)
+num_eval: 5 # number of evaluation episodes to run for the final reward
+capture_video: False # whether to capture policy rollout videos
+
+# Weights and Biases
+use_wandb: False # whether to use wandb for logging
+wandb_username: "" # wandb username if logging with wandb
+wandb_project: "" # wandb project if logging with wandb

@@ -1,0 +1,57 @@
+## Task Context
+
+The Python environment observation structure is:
+{task_obs_code_string}
+
+## Your Mission
+
+Write a reward function for the following task: **{task_description}**
+
+## Starting from Scratch - Your First Design
+
+This is your opportunity to design a reward function from first principles. Consider:
+
+### 1. Task Analysis
+- What is the agent trying to achieve? Break it down into fundamental objectives.
+- What are the key observables that indicate progress toward the goal?
+- What are the critical intermediate steps that lead to success?
+- What behaviors should be encouraged? What should be discouraged?
+
+### 2. Reward Design Strategy
+- **Core Objective**: What is the primary measure of success? Design a reward component for this.
+- **Progress Indicators**: What observables show the agent is making progress? Reward these.
+- **Intermediate Goals**: Are there sub-tasks that must be completed? Reward each appropriately.
+- **Constraint Handling**: Are there constraints (e.g., avoiding collisions, staying within bounds)? Penalize violations.
+- **Efficiency**: Should the agent complete the task quickly? Consider time-based rewards.
+
+### 3. Implementation Approach
+- Start with 2-4 core reward components that capture the essence of the task
+- Use clear, descriptive names for each component (e.g., "key_press_accuracy", "timing_precision", "fingering_correctness")
+- Design each component to be independently analyzable
+- Use appropriate scales - ensure components are in similar magnitude ranges
+- Consider using temperature parameters for exponential transformations if needed
+
+### 4. Creative Exploration
+- Don't limit yourself to obvious reward structures
+- Think about what information is available in the observation space
+- Consider novel ways to measure task performance
+- Design rewards that provide learning signals throughout the episode, not just at the end
+
+### 5. Documentation
+- Write a comprehensive docstring explaining:
+  * Your design philosophy and approach
+  * What each reward component measures and why it's important
+  * How the components work together
+  * Any assumptions or design choices you made
+
+## Example Thinking Process
+
+For a piano playing task, you might think:
+- "The agent needs to press the correct keys at the right time"
+- "I should reward: (1) accuracy of key presses, (2) timing precision, (3) proper finger usage"
+- "I can measure key press accuracy by comparing current piano state to goal state"
+- "I can measure timing by checking if keys are pressed when they should be"
+- "I should penalize wrong key presses to avoid random exploration"
+
+Now design your reward function with this progressive, exploratory mindset!
+

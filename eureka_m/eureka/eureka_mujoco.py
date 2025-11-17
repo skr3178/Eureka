@@ -1,0 +1,664 @@
+import hydra
+import numpy as np 
+import json
+import logging 
+import matplotlib.pyplot as plt
+import os
+import openai
+import re
+import subprocess
+from pathlib import Path
+import shutil
+import time 
+
+from utils.misc import * 
+from utils.file_utils import find_files_with_substring, load_tensorboard_logs
+from utils.create_task import create_task
+from utils.extract_task_code import *
+import signal
+import psutil
+
+EUREKA_ROOT_DIR = os.getcwd()
+ISAAC_ROOT_DIR = f"{EUREKA_ROOT_DIR}/../isaacgymenvs/isaacgymenvs"
+
+def cleanup_process(process):
+    """Properly clean up a subprocess and its children"""
+    try:
+        if process.poll() is None:  # Process is still running
+            # Get all child processes
+            parent = psutil.Process(process.pid)
+            children = parent.children(recursive=True)
+            
+            # Terminate children first
+            for child in children:
+                try:
+                    child.terminate()
+                except psutil.NoSuchProcess:
+                    pass
+            
+            # Wait a bit for graceful termination
+            time.sleep(2)
+            
+            # Kill any remaining children
+            for child in children:
+                try:
+                    if child.is_running():
+                        child.kill()
+                except psutil.NoSuchProcess:
+                    pass
+            
+            # Terminate the main process
+            process.terminate()
+            time.sleep(1)
+            
+            # Force kill if still running
+            if process.poll() is None:
+                process.kill()
+                
+        process.wait(timeout=5)  # Wait for process to finish
+    except (subprocess.TimeoutExpired, psutil.NoSuchProcess, ProcessLookupError):
+        pass
+    except Exception as e:
+        logging.warning(f"Error cleaning up process: {e}")
+
+@hydra.main(config_path="cfg", config_name="config", version_base="1.1")
+def main(cfg):
+    workspace_dir = Path.cwd()
+    logging.info(f"Workspace: {workspace_dir}")
+    logging.info(f"Project Root: {EUREKA_ROOT_DIR}")
+
+    # Initialize OpenAI client with OpenRouter API
+    openai_client = openai.OpenAI(
+        base_url="https://openrouter.ai/api/v1",
+        api_key=os.getenv("OPENROUTER_API_KEY")
+    )
+    
+    # Set up signal handler for graceful shutdown
+    def signal_handler(signum, frame):
+        logging.info("Received interrupt signal, cleaning up...")
+        # Clear GPU memory on exit
+        clear_gpu_memory()
+        exit(0)
+    
+    signal.signal(signal.SIGINT, signal_handler)
+    signal.signal(signal.SIGTERM, signal_handler)
+
+    task = cfg.env.task
+    task_description = cfg.env.description
+    suffix = cfg.suffix
+    model = cfg.model
+    logging.info(f"Using LLM: {model}")
+    logging.info("Task: " + task)
+    logging.info("Task description: " + task_description)
+
+    env_name = cfg.env.env_name.lower()
+    # Check which environment directory contains the task file
+    # For eureka_mujoco.py, prioritize mujoco environments
+    if f'{env_name}.py' in os.listdir(f'{EUREKA_ROOT_DIR}/envs/mujoco'):
+        env_parent = 'mujoco'
+        use_isaacgym = False
+    elif f'{env_name}.py' in os.listdir(f'{EUREKA_ROOT_DIR}/envs/isaac'):
+        env_parent = 'isaac'
+        use_isaacgym = True
+    else:
+        env_parent = 'bidex'  # default to dexterity/bidex
+        use_isaacgym = True
+    task_file = f'{EUREKA_ROOT_DIR}/envs/{env_parent}/{env_name}.py'
+    task_obs_file = f'{EUREKA_ROOT_DIR}/envs/{env_parent}/{env_name}_obs.py'
+    shutil.copy(task_obs_file, f"env_init_obs.py")
+    task_code_string  = file_to_string(task_file)
+    task_obs_code_string  = file_to_string(task_obs_file)
+    
+    # For MuJoCo environments, save to a different location
+    if use_isaacgym:
+        output_file = f"{ISAAC_ROOT_DIR}/tasks/{env_name}{suffix.lower()}.py"
+    else:
+        # MuJoCo environments: save to local mujoco_tasks directory
+        mujoco_tasks_dir = f"{EUREKA_ROOT_DIR}/mujoco_tasks"
+        os.makedirs(mujoco_tasks_dir, exist_ok=True)
+        output_file = f"{mujoco_tasks_dir}/{env_name}{suffix.lower()}.py"
+
+    # Loading all text prompts
+    prompt_dir = f'{EUREKA_ROOT_DIR}/utils/prompts'
+    initial_system = file_to_string(f'{prompt_dir}/initial_system.txt')
+    code_output_tip = file_to_string(f'{prompt_dir}/code_output_tip.txt')
+    code_feedback = file_to_string(f'{prompt_dir}/code_feedback.txt')
+    initial_user = file_to_string(f'{prompt_dir}/initial_user.txt')
+    reward_signature = file_to_string(f'{prompt_dir}/reward_signature.txt')
+    policy_feedback = file_to_string(f'{prompt_dir}/policy_feedback.txt')
+    execution_error_feedback = file_to_string(f'{prompt_dir}/execution_error_feedback.txt')
+
+    initial_system = initial_system.format(task_reward_signature_string=reward_signature) + code_output_tip
+    initial_user = initial_user.format(task_obs_code_string=task_obs_code_string, task_description=task_description)
+    messages = [{"role": "system", "content": initial_system}, {"role": "user", "content": initial_user}]
+
+    task_code_string = task_code_string.replace(task, task+suffix)
+    # Create Task YAML files (only for IsaacGym environments)
+    if use_isaacgym:
+        create_task(ISAAC_ROOT_DIR, cfg.env.task, cfg.env.env_name, suffix)
+    else:
+        logging.info("MuJoCo environment detected: Skipping IsaacGym task YAML creation. MuJoCo training requires separate setup.")
+
+    DUMMY_FAILURE = -10000.
+    max_successes = []
+    max_successes_reward_correlation = []
+    execute_rates = []
+    best_code_paths = []
+    max_success_overall = DUMMY_FAILURE
+    max_success_reward_correlation_overall = DUMMY_FAILURE
+    max_reward_code_path = None 
+    
+    # Eureka generation loop
+    for iter in range(cfg.iteration):
+        # Get Eureka response
+        responses = []
+        response_cur = None
+        total_samples = 0
+        total_token = 0
+        total_completion_token = 0
+        chunk_size = cfg.sample if "gpt-3.5" in model else 4
+        
+        # OpenRouter may not support n parameter for all models, so request one at a time
+        # Uncomment the line below if n parameter doesn't work
+        # chunk_size = 1
+
+        logging.info(f"Iteration {iter}: Generating {cfg.sample} samples with {cfg.model}")
+
+        while True:
+            if total_samples >= cfg.sample:
+                break
+            for attempt in range(1000):
+                try:
+                    response_cur = openai_client.chat.completions.create(
+                        model=model,
+                        messages=messages,
+                        temperature=cfg.temperature,
+                        n=chunk_size,
+                        extra_headers={
+                            "HTTP-Referer": os.getenv("YOUR_SITE_URL", ""),  # Optional. Site URL for rankings on openrouter.ai.
+                            "X-Title": os.getenv("YOUR_SITE_NAME", ""),  # Optional. Site title for rankings on openrouter.ai.
+                        },
+                        extra_body={}
+                    )
+                    total_samples += chunk_size
+                    break
+                except Exception as e:
+                    if attempt >= 10:
+                        chunk_size = max(int(chunk_size / 2), 1)
+                        print("Current Chunk Size", chunk_size)
+                    logging.info(f"Attempt {attempt+1} failed with error: {e}")
+                    time.sleep(1)
+            if response_cur is None:
+                logging.info("Code terminated due to too many failed attempts!")
+                exit()
+
+            responses.extend(response_cur.choices)
+            prompt_tokens = response_cur.usage.prompt_tokens
+            total_completion_token += response_cur.usage.completion_tokens
+            total_token += response_cur.usage.total_tokens
+
+        if cfg.sample == 1:
+            logging.info(f"Iteration {iter}: GPT Output:\n " + responses[0].message.content + "\n")
+
+        # Logging Token Information
+        logging.info(f"Iteration {iter}: Prompt Tokens: {prompt_tokens}, Completion Tokens: {total_completion_token}, Total Tokens: {total_token}")
+        
+        # Check if we got enough responses
+        if len(responses) < cfg.sample:
+            logging.warning(f"Iteration {iter}: Expected {cfg.sample} responses but got {len(responses)}. Processing available responses.")
+        
+        code_runs = [] 
+        rl_runs = []
+        # Use the actual number of responses instead of cfg.sample
+        num_responses = min(len(responses), cfg.sample)
+        for response_id in range(num_responses):
+            response_cur = responses[response_id].message.content
+            logging.info(f"Iteration {iter}: Processing Code Run {response_id}")
+
+            # Regex patterns to extract python code enclosed in GPT response
+            patterns = [
+                r'```python(.*?)```',
+                r'```(.*?)```',
+                r'"""(.*?)"""',
+                r'""(.*?)""',
+                r'"(.*?)"',
+            ]
+            for pattern in patterns:
+                code_string = re.search(pattern, response_cur, re.DOTALL)
+                if code_string is not None:
+                    code_string = code_string.group(1).strip()
+                    break
+            code_string = response_cur if not code_string else code_string
+
+            # Remove unnecessary imports
+            lines = code_string.split("\n")
+            for i, line in enumerate(lines):
+                if line.strip().startswith("def "):
+                    code_string = "\n".join(lines[i:])
+                    
+            # Add the Eureka Reward Signature to the environment code
+            try:
+                gpt_reward_signature, input_lst = get_function_signature(code_string)
+            except Exception as e:
+                logging.info(f"Iteration {iter}: Code Run {response_id} cannot parse function signature!")
+                continue
+
+            code_runs.append(code_string)
+            
+            # Generate reward signature based on environment type
+            if use_isaacgym:
+                # Isaac Gym code (existing)
+                reward_signature = [
+                    f"self.rew_buf[:], self.rew_dict = {gpt_reward_signature}",
+                    f"self.extras['gpt_reward'] = self.rew_buf.mean()",
+                    f"for rew_state in self.rew_dict: self.extras[rew_state] = self.rew_dict[rew_state].mean()",
+                ]
+            else:
+                # MuJoCo code: convert numpy to torch, call function, convert back
+                # Check which parameters the generated function expects
+                if len(input_lst) == 1 and 'obs' in input_lst:
+                    # Function only takes obs
+                    reward_signature = [
+                        "# Convert numpy arrays to torch tensors",
+                        "obs_tensor = torch.from_numpy(np.asarray(obs, dtype=np.float32))",
+                        "",
+                        "# Call the generated reward function",
+                        "rewards_tensor, rew_dict_tensor = compute_reward(obs_tensor)",
+                        "",
+                        "# Convert back to numpy",
+                        "rewards = rewards_tensor.detach().cpu().numpy()",
+                        "rew_dict = {k: v.detach().cpu().numpy() for k, v in rew_dict_tensor.items()}",
+                        "",
+                        "return rewards, rew_dict"
+                    ]
+                elif 'obs' in input_lst and 'actions' in input_lst:
+                    # Function takes both obs and actions
+                    reward_signature = [
+                        "# Convert numpy arrays to torch tensors",
+                        "obs_tensor = torch.from_numpy(np.asarray(obs, dtype=np.float32))",
+                        "actions_tensor = torch.from_numpy(np.asarray(actions, dtype=np.float32))",
+                        "",
+                        "# Call the generated reward function",
+                        "rewards_tensor, rew_dict_tensor = compute_reward(obs_tensor, actions_tensor)",
+                        "",
+                        "# Convert back to numpy",
+                        "rewards = rewards_tensor.detach().cpu().numpy()",
+                        "rew_dict = {k: v.detach().cpu().numpy() for k, v in rew_dict_tensor.items()}",
+                        "",
+                        "return rewards, rew_dict"
+                    ]
+                else:
+                    # Fallback: assume only obs is needed (most common case)
+                    reward_signature = [
+                        "# Convert numpy arrays to torch tensors",
+                        "obs_tensor = torch.from_numpy(np.asarray(obs, dtype=np.float32))",
+                        "",
+                        "# Call the generated reward function",
+                        "rewards_tensor, rew_dict_tensor = compute_reward(obs_tensor)",
+                        "",
+                        "# Convert back to numpy",
+                        "rewards = rewards_tensor.detach().cpu().numpy()",
+                        "rew_dict = {k: v.detach().cpu().numpy() for k, v in rew_dict_tensor.items()}",
+                        "",
+                        "return rewards, rew_dict"
+                    ]
+            
+            indent = " " * 8
+            reward_signature = "\n".join([indent + line for line in reward_signature])
+            if "def compute_reward(self)" in task_code_string:
+                task_code_string_iter = task_code_string.replace("def compute_reward(self):", "def compute_reward(self):\n" + reward_signature)
+            elif "def compute_reward(self, actions)" in task_code_string:
+                task_code_string_iter = task_code_string.replace("def compute_reward(self, actions):", "def compute_reward(self, actions):\n" + reward_signature)
+            elif "def compute_reward(self, obs, actions)" in task_code_string:
+                # MuJoCo environments use (obs, actions) signature
+                task_code_string_iter = task_code_string.replace("def compute_reward(self, obs, actions):", "def compute_reward(self, obs, actions):\n" + reward_signature)
+            else:
+                raise NotImplementedError(f"Could not find compute_reward function signature in task code. Available patterns: def compute_reward(self), def compute_reward(self, actions), def compute_reward(self, obs, actions)")
+
+            # Save the new environment code when the output contains valid code string!
+            with open(output_file, 'w') as file:
+                file.writelines(task_code_string_iter + '\n')
+                file.writelines("from typing import Tuple, Dict" + '\n')
+                file.writelines("import math" + '\n')
+                file.writelines("import numpy as np" + '\n')
+                file.writelines("import torch" + '\n')
+                file.writelines("from torch import Tensor" + '\n')
+                if "@torch.jit.script" not in code_string:
+                    code_string = "@torch.jit.script\n" + code_string
+                file.writelines(code_string + '\n')
+
+            with open(f"env_iter{iter}_response{response_id}_rewardonly.py", 'w') as file:
+                file.writelines(code_string + '\n')
+
+            # Copy the generated environment code to hydra output directory for bookkeeping
+            shutil.copy(output_file, f"env_iter{iter}_response{response_id}.py")
+
+            # Clear GPU memory before starting new job
+            clear_gpu_memory()
+            
+            # Find the freest GPU to run GPU-accelerated RL
+            set_freest_gpu()
+            
+            # Execute the python file with flags - SEQUENTIAL EXECUTION
+            rl_filepath = f"env_iter{iter}_response{response_id}.txt"
+            with open(rl_filepath, 'w') as f:
+                if use_isaacgym:
+                    # IsaacGym training
+                    process = subprocess.Popen(['python', '-u', f'{ISAAC_ROOT_DIR}/train.py',  
+                                                'hydra/output=subprocess',
+                                                f'task={task}{suffix}', f'wandb_activate={cfg.use_wandb}',
+                                                f'wandb_entity={cfg.wandb_username}', f'wandb_project={cfg.wandb_project}',
+                                                f'headless={not cfg.capture_video}', f'capture_video={cfg.capture_video}', 'force_render=False',
+                                                f'max_iterations={cfg.max_iterations}'],
+                                                stdout=f, stderr=f)
+                else:
+                    # MuJoCo training using rl_games
+                    train_script = f'{EUREKA_ROOT_DIR}/train_mujoco.py'
+                    # Use environment-specific SAC config file if it exists, otherwise default to ant
+                    config_name = f'{env_name}_sac.yaml'
+                    config_file = f'{EUREKA_ROOT_DIR}/cfg/train/{config_name}'
+                    if not os.path.exists(config_file):
+                        # Fallback to ant config if env-specific config doesn't exist
+                        config_file = f'{EUREKA_ROOT_DIR}/cfg/train/ant_mujoco_ppo.yaml'
+                    process = subprocess.Popen(['python', '-u', train_script,
+                                                f'--env_file={output_file}',
+                                                f'--config={config_file}',
+                                                f'--num_envs=1',
+                                                f'--seed=42',
+                                                f'--wandb_activate={cfg.use_wandb}',
+                                                f'--wandb_entity={cfg.wandb_username}',
+                                                f'--wandb_project={cfg.wandb_project}',
+                                                f'--max_iterations={cfg.max_iterations}',
+                                                f'--output_dir={workspace_dir}'],
+                                                stdout=f, stderr=f)
+            
+            # Wait for training to complete properly
+            block_until_training(rl_filepath, log_status=True, iter_num=iter, response_id=response_id)
+            
+            # Clean up the process properly
+            cleanup_process(process)
+            
+            # Clear GPU memory after job completion
+            clear_gpu_memory()
+            
+            rl_runs.append(process)
+        
+        # Gather RL training results and construct reward reflection
+        code_feedbacks = []
+        contents = []
+        successes = []
+        reward_correlations = []
+        code_paths = []
+        
+        exec_success = False 
+        for response_id, (code_run, rl_run) in enumerate(zip(code_runs, rl_runs)):
+            rl_run.communicate()
+            rl_filepath = f"env_iter{iter}_response{response_id}.txt"
+            code_paths.append(f"env_iter{iter}_response{response_id}.py")
+            try:
+                with open(rl_filepath, 'r') as f:
+                    stdout_str = f.read() 
+            except: 
+                content = execution_error_feedback.format(traceback_msg="Code Run cannot be executed due to function signature error! Please re-write an entirely new reward function!")
+                content += code_output_tip
+                contents.append(content) 
+                successes.append(DUMMY_FAILURE)
+                reward_correlations.append(DUMMY_FAILURE)
+                continue
+
+            content = ''
+            traceback_msg = filter_traceback(stdout_str)
+
+            if traceback_msg == '':
+                # If RL execution has no error, provide policy statistics feedback
+                exec_success = True
+                lines = stdout_str.split('\n')
+                tensorboard_logdir = None
+                for i, line in enumerate(lines):
+                    if line.startswith('Tensorboard Directory:'):
+                        tensorboard_logdir = line.split(':')[-1].strip()
+                        break 
+                if tensorboard_logdir:
+                    # If path points to a file, get its parent directory
+                    if os.path.isfile(tensorboard_logdir):
+                        tensorboard_logdir = os.path.dirname(tensorboard_logdir)
+                    tensorboard_logs = load_tensorboard_logs(tensorboard_logdir)
+                else:
+                    tensorboard_logs = {}
+                
+                if tensorboard_logs and 'gt_reward' in tensorboard_logs:
+                    max_iterations = np.array(tensorboard_logs['gt_reward']).shape[0]
+                    epoch_freq = max(int(max_iterations // 10), 1)
+                else:
+                    epoch_freq = 1
+                
+                content += policy_feedback.format(epoch_freq=epoch_freq)
+                
+                # Compute Correlation between Human-Engineered and GPT Rewards
+                if "gt_reward" in tensorboard_logs and "gpt_reward" in tensorboard_logs:
+                    gt_reward = np.array(tensorboard_logs["gt_reward"])
+                    gpt_reward = np.array(tensorboard_logs["gpt_reward"])
+                    reward_correlation = np.corrcoef(gt_reward, gpt_reward)[0, 1]
+                    reward_correlations.append(reward_correlation)
+                else:
+                    # If no reward correlation available, use 0 as default
+                    reward_correlations.append(0.0)
+
+                # Add reward components log to the feedback
+                has_consecutive_successes = False
+                for metric in tensorboard_logs:
+                    if "/" not in metric:
+                        metric_cur = ['{:.2f}'.format(x) for x in tensorboard_logs[metric][::epoch_freq]]
+                        metric_cur_max = max(tensorboard_logs[metric])
+                        metric_cur_mean = sum(tensorboard_logs[metric]) / len(tensorboard_logs[metric])
+                        if "consecutive_successes" == metric:
+                            successes.append(metric_cur_max)
+                            has_consecutive_successes = True
+                        metric_cur_min = min(tensorboard_logs[metric])
+                        if metric != "gt_reward" and metric != "gpt_reward":
+                            if metric != "consecutive_successes":
+                                metric_name = metric 
+                            else:
+                                metric_name = "task_score"
+                            content += f"{metric_name}: {metric_cur}, Max: {metric_cur_max:.2f}, Mean: {metric_cur_mean:.2f}, Min: {metric_cur_min:.2f} \n"                    
+                        else:
+                            # Provide ground-truth score when success rate not applicable
+                            if "consecutive_successes" not in tensorboard_logs:
+                                content += f"ground-truth score: {metric_cur}, Max: {metric_cur_max:.2f}, Mean: {metric_cur_mean:.2f}, Min: {metric_cur_min:.2f} \n"                    
+                
+                # If no consecutive_successes metric, use mean reward as fallback
+                if not has_consecutive_successes:
+                    if "gpt_reward" in tensorboard_logs:
+                        mean_reward = np.mean(tensorboard_logs["gpt_reward"])
+                        successes.append(mean_reward)
+                    elif "gt_reward" in tensorboard_logs:
+                        mean_reward = np.mean(tensorboard_logs["gt_reward"])
+                        successes.append(mean_reward)
+                    else:
+                        # Fallback to 0 if no reward metrics available
+                        successes.append(0.0)
+                
+                code_feedbacks.append(code_feedback)
+                content += code_feedback  
+            else:
+                # Otherwise, provide execution traceback error feedback
+                successes.append(DUMMY_FAILURE)
+                reward_correlations.append(DUMMY_FAILURE)
+                content += execution_error_feedback.format(traceback_msg=traceback_msg)
+
+            content += code_output_tip
+            contents.append(content) 
+        
+        # Repeat the iteration if all code generation failed
+        if not exec_success and cfg.sample != 1:
+            execute_rates.append(0.)
+            max_successes.append(DUMMY_FAILURE)
+            max_successes_reward_correlation.append(DUMMY_FAILURE)
+            best_code_paths.append(None)
+            logging.info("All code generation failed! Repeat this iteration from the current message checkpoint!")
+            continue
+
+        # Select the best code sample based on the success rate
+        if len(successes) == 0:
+            # Fallback: if no successes recorded, use first sample
+            logging.warning("No success metrics found, using first sample as best")
+            best_sample_idx = 0
+            if len(contents) > 0:
+                best_content = contents[0]
+            else:
+                logging.error("No contents available!")
+                continue
+            max_success = 0.0
+            max_success_reward_correlation = reward_correlations[0] if len(reward_correlations) > 0 else DUMMY_FAILURE
+            execute_rate = 0.0
+        else:
+            best_sample_idx = np.argmax(np.array(successes))
+            best_content = contents[best_sample_idx]
+            max_success = successes[best_sample_idx]
+            max_success_reward_correlation = reward_correlations[best_sample_idx] if best_sample_idx < len(reward_correlations) else DUMMY_FAILURE
+            execute_rate = np.sum(np.array(successes) >= 0.) / len(successes) if len(successes) > 0 else 0.0
+
+        # Update the best Eureka Output
+        if max_success > max_success_overall:
+            max_success_overall = max_success
+            max_success_reward_correlation_overall = max_success_reward_correlation
+            max_reward_code_path = code_paths[best_sample_idx]
+
+        execute_rates.append(execute_rate)
+        max_successes.append(max_success)
+        max_successes_reward_correlation.append(max_success_reward_correlation)
+        best_code_paths.append(code_paths[best_sample_idx])
+
+        logging.info(f"Iteration {iter}: Max Success: {max_success}, Execute Rate: {execute_rate}, Max Success Reward Correlation: {max_success_reward_correlation}")
+        logging.info(f"Iteration {iter}: Best Generation ID: {best_sample_idx}")
+        logging.info(f"Iteration {iter}: GPT Output Content:\n" +  responses[best_sample_idx].message.content + "\n")
+        logging.info(f"Iteration {iter}: User Content:\n" + best_content + "\n")
+            
+        # Plot the success rate
+        fig, axs = plt.subplots(2, figsize=(6, 6))
+        fig.suptitle(f'{cfg.env.task}')
+
+        x_axis = np.arange(len(max_successes))
+
+        axs[0].plot(x_axis, np.array(max_successes))
+        axs[0].set_title("Max Success")
+        axs[0].set_xlabel("Iteration")
+
+        axs[1].plot(x_axis, np.array(execute_rates))
+        axs[1].set_title("Execute Rate")
+        axs[1].set_xlabel("Iteration")
+
+        fig.tight_layout(pad=3.0)
+        plt.savefig('summary.png')
+        np.savez('summary.npz', max_successes=max_successes, execute_rates=execute_rates, best_code_paths=best_code_paths, max_successes_reward_correlation=max_successes_reward_correlation)
+
+        if len(messages) == 2:
+            messages += [{"role": "assistant", "content": responses[best_sample_idx].message.content}]
+            messages += [{"role": "user", "content": best_content}]
+        else:
+            assert len(messages) == 4
+            messages[-2] = {"role": "assistant", "content": responses[best_sample_idx].message.content}
+            messages[-1] = {"role": "user", "content": best_content}
+
+        # Save dictionary as JSON file
+        with open('messages.json', 'w') as file:
+            json.dump(messages, file, indent=4)
+    
+    # Evaluate the best reward code many times
+    if max_reward_code_path is None: 
+        logging.info("All iterations of code generation failed, aborting...")
+        logging.info("Please double check the output env_iter*_response*.txt files for repeating errors!")
+        exit()
+    logging.info(f"Task: {task}, Max Training Success {max_success_overall}, Correlation {max_success_reward_correlation_overall}, Best Reward Code Path: {max_reward_code_path}")
+    logging.info(f"Evaluating best reward code {cfg.num_eval} times")
+    shutil.copy(max_reward_code_path, output_file)
+    
+    eval_runs = []
+    for i in range(cfg.num_eval):
+        # Clear GPU memory before starting new evaluation
+        clear_gpu_memory()
+        
+        set_freest_gpu()
+        
+        # Execute the python file with flags
+        rl_filepath = f"reward_code_eval{i}.txt"
+        with open(rl_filepath, 'w') as f:
+            if use_isaacgym:
+                process = subprocess.Popen(['python', '-u', f'{ISAAC_ROOT_DIR}/train.py',  
+                                            'hydra/output=subprocess',
+                                            f'task={task}{suffix}', f'wandb_activate={cfg.use_wandb}',
+                                            f'wandb_entity={cfg.wandb_username}', f'wandb_project={cfg.wandb_project}',
+                                            f'headless={not cfg.capture_video}', f'capture_video={cfg.capture_video}', 'force_render=False', f'seed={i}',
+                                            ],
+                                            stdout=f, stderr=f)
+            else:
+                # MuJoCo evaluation training using rl_games
+                train_script = f'{EUREKA_ROOT_DIR}/train_mujoco.py'
+                # Use environment-specific SAC config file if it exists, otherwise default to ant
+                config_name = f'{env_name}_sac.yaml'
+                config_file = f'{EUREKA_ROOT_DIR}/cfg/train/{config_name}'
+                if not os.path.exists(config_file):
+                    # Fallback to ant config if env-specific config doesn't exist
+                    config_file = f'{EUREKA_ROOT_DIR}/cfg/train/ant_mujoco_ppo.yaml'
+                process = subprocess.Popen(['python', '-u', train_script,
+                                            f'--env_file={output_file}',
+                                            f'--config={config_file}',
+                                            f'--num_envs=1',
+                                            f'--seed={i}',
+                                            f'--wandb_activate={cfg.use_wandb}',
+                                            f'--wandb_entity={cfg.wandb_username}',
+                                            f'--wandb_project={cfg.wandb_project}',
+                                            f'--output_dir={workspace_dir}'],
+                                            stdout=f, stderr=f)
+
+        # Wait for training to complete properly
+        block_until_training(rl_filepath)
+        
+        # Clean up the process properly
+        cleanup_process(process)
+        
+        # Clear GPU memory after evaluation completion
+        clear_gpu_memory()
+        
+        eval_runs.append(process)
+
+    reward_code_final_successes = []
+    reward_code_correlations_final = []
+    for i, rl_run in enumerate(eval_runs):
+        rl_run.communicate()
+        rl_filepath = f"reward_code_eval{i}.txt"
+        with open(rl_filepath, 'r') as f:
+            stdout_str = f.read() 
+        lines = stdout_str.split('\n')
+        tensorboard_logdir = None
+        for i, line in enumerate(lines):
+            if line.startswith('Tensorboard Directory:'):
+                tensorboard_logdir = line.split(':')[-1].strip()
+                break 
+        if tensorboard_logdir:
+            # If path points to a file, get its parent directory
+            if os.path.isfile(tensorboard_logdir):
+                tensorboard_logdir = os.path.dirname(tensorboard_logdir)
+            tensorboard_logs = load_tensorboard_logs(tensorboard_logdir)
+        else:
+            tensorboard_logs = {}
+        
+        if tensorboard_logs and 'consecutive_successes' in tensorboard_logs:
+            max_success = max(tensorboard_logs['consecutive_successes'])
+            reward_code_final_successes.append(max_success)
+        else:
+            reward_code_final_successes.append(DUMMY_FAILURE)
+
+        if "gt_reward" in tensorboard_logs and "gpt_reward" in tensorboard_logs:
+            gt_reward = np.array(tensorboard_logs["gt_reward"])
+            gpt_reward = np.array(tensorboard_logs["gpt_reward"])
+            reward_correlation = np.corrcoef(gt_reward, gpt_reward)[0, 1]
+            reward_code_correlations_final.append(reward_correlation)
+
+    logging.info(f"Final Success Mean: {np.mean(reward_code_final_successes)}, Std: {np.std(reward_code_final_successes)}, Raw: {reward_code_final_successes}")
+    logging.info(f"Final Correlation Mean: {np.mean(reward_code_correlations_final)}, Std: {np.std(reward_code_correlations_final)}, Raw: {reward_code_correlations_final}")
+    np.savez('final_eval.npz', reward_code_final_successes=reward_code_final_successes, reward_code_correlations_final=reward_code_correlations_final)
+
+
+if __name__ == "__main__":
+    main()

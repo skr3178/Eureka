@@ -1,0 +1,15 @@
+{
+    "python.defaultInterpreterPath": "/home/skr/miniconda3/envs/eureka3/bin/python",
+    "python.terminal.activateEnvironment": true,
+    "python.condaPath": "/home/skr/miniconda3/bin/conda",
+    "python.terminal.activateEnvInCurrentTerminal": true,
+    "terminal.integrated.env.linux": {
+        "CONDA_DEFAULT_ENV": "eureka3",
+        "PATH": "/home/skr/miniconda3/envs/eureka3/bin:${env:PATH}"
+    },
+    "python.analysis.extraPaths": [
+        "${workspaceFolder}/eureka_m/eureka",
+        "${workspaceFolder}/eureka_m"
+    ]
+}
+

@@ -1,0 +1,10 @@
+task: RoboPianistEnv # Environment class Name in the environment file
+env_name: robopianist # Environment file name (should match the .py file name in mujoco directory)
+description: to make the two robot hands play the piano following the MIDI file, pressing the correct keys at the right time with proper fingering
+
+# Note: MIDI files are located at /home/skr/eureka_p/eureka_m/robopianist/PianoFingeringDataset_v1.2
+# The environment can use:
+# - Predefined environment names (e.g., "RoboPianist-debug-TwinkleTwinkleRousseau-v0")
+# - Direct MIDI file paths via the midi_file parameter in the environment wrapper
+# The dataset contains 150 pieces from the PIG (Piano Fingering Dataset) that need to be preprocessed
+
